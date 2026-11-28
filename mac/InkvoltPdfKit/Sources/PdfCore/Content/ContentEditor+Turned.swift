@@ -134,6 +134,7 @@ extension ContentEditor {
         var l = layout
         l.check.box = turned(layout.check.box, -p.angle)
         l.check.overlaps = layout.check.overlaps == nil ? nil : p.below
+        l.underlined = [] // turned text's underlines aren't looked for
         l.lines = layout.lines.map { (fromFrame($0.origin, p.angle), $0.parts) }
         return l
     }

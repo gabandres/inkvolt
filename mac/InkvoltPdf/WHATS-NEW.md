@@ -6,6 +6,13 @@ collects what's done since the last release and is never shown. Short lines, in 
 their Spanish, line for line, shown when the app runs in Spanish: an English line needs its Spanish there (`PdfStringsTests`).
 
 ## Next
+- Translate with AI keeps more of a paragraph's look: a regular word in a bold paragraph, a word in another color or another kind of font (a name in Times among Arial, code in a typewriter font), subscripts and superscripts at their own size and height, and a superscript longer than a footnote mark, however long (a list of references raised after a word stays whole). A long paragraph sent in parts keeps its look too, and so does text with a "<" or ">" of its own (p < 0.05). A line with a superscript or subscript gets the room it needs, so it doesn't run into the line above or below. Footnotes that each start with their own mark are translated apart, not run together.
+- Translate with AI keeps underlined words underlined: the line drawn under them moves to the words that translate them, in its color and thickness.
+- Translate with AI into Arabic or Hebrew keeps bold, italic, coloured and underlined words, subscripts and superscripts, each in its place in the right-to-left line.
+- An Arabic or Hebrew translation opened in Firefox's PDF viewer (and the other viewers built on pdf.js) now keeps the spaces between its Arabic or Hebrew words when you copy or search it; they all used to run together.
+- Translate with AI keeps up to three different colours or fonts in one paragraph (a red word and a name in Courier, say), each as it was; only the first was kept before.
+- Translate with AI keeps more of what a small local model sends back: bold and italic it marks in its own way, and a label or name it puts in angle brackets, which used to be dropped.
+- Titles in URW's bold Times (NimbusRomNo9L-Medi, as in many LaTeX papers) stay bold when translated or converted to Word, and LaTeX's math letters come out in italic.
 - Redaction no longer lets the width of what you removed show. Text after a black box used to stay where it was, so the gap (and the box itself) could tell how long the hidden words were. Now each redacted line is laid out again: its words keep their order, spaces are even, and the box's width is rounded, so the line looks the same whatever was under it.
 - Check Redaction also finds black boxes drawn into a page's picture (by tools that turn pages into images, or on a scan) with text beside them that may give the hidden width away.
 - Make Accessible finds rows that share a label in tables drawn without lines (a region over its countries) and tags the label as spanning those rows, so a screen reader reads it with each of them.

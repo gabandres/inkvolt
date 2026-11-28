@@ -38,7 +38,7 @@ extension ContentEditor {
     }
 
     /// The page's /Link annotations and where they are (none past `maxLinksToFollow`).
-    private static func pageLinks(_ page: PObj) -> [(annot: PObj, box: RectD)] {
+    static func pageLinks(_ page: PObj) -> [(annot: PObj, box: RectD)] {
         guard let annots = page.array("Annots"), annots.count <= maxLinksToFollow else { return [] }
         var links: [(annot: PObj, box: RectD)] = []
         for a in annots.elements where a.isDict && a.name("Subtype") == "Link" {
@@ -403,7 +403,7 @@ extension ContentEditor {
     }
 
     /// A rectangle of the page as shown filled in a color, as operators in the page's default space.
-    private static func filled(_ page: PObj, _ box: RectD, _ color: Int) -> String {
+    static func filled(_ page: PObj, _ box: RectD, _ color: Int) -> String {
         let r = PageBoxes.fromPageSpace(page, box)
         func n(_ v: Double) -> String { ContentLexer.number(v) }
         let rgb = "\(n(Double(color >> 16 & 0xFF) / 255)) \(n(Double(color >> 8 & 0xFF) / 255)) \(n(Double(color & 0xFF) / 255)) rg"
@@ -411,7 +411,7 @@ extension ContentEditor {
     }
 
     /// Appends drawing after the page's content, which is wrapped in q/Q so its graphics state can't leak.
-    private static func appendDrawing(_ doc: MuDoc, _ page: PObj, _ ops: String) {
+    static func appendDrawing(_ doc: MuDoc, _ page: PObj, _ ops: String) {
         var contents: [PObj] = [doc.addStream(Array("q\n".utf8), deflate: false)]
         if let existing = page["Contents"] { contents += existing.isArray ? existing.elements : [existing] }
         contents.append(doc.addStream(Array(("Q\n" + ops).utf8), deflate: false))

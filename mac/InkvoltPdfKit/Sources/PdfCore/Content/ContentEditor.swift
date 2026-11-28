@@ -65,6 +65,35 @@ public struct TextRun: Sendable {
     /// To the end of the last glyph's ink, in text space (as `oldWidth` measures the run).
     func width(_ parts: [ContentEditor.Part]) -> Double { measure(parts).end }
 
+    /// Where each part reaches along the line from its start (text space, as `width` measures): a glyph or a stand-in's
+    /// stretch from its start to the end of its ink (`ink`), an adjustment the room it moves the next one by.
+    func extents(_ parts: [ContentEditor.Part]) -> [(start: Double, end: Double, ink: Bool)] {
+        guard let font else { return parts.map { _ in (0, 0, false) } }
+        var out: [(start: Double, end: Double, ink: Bool)] = []
+        out.reserveCapacity(parts.count)
+        var w = 0.0
+        for p in parts {
+            let size: Double = self.size * (p.look?.scale ?? 1)
+            let start = w
+            if let s = p.standIn {
+                w += s.width * size * hScale
+                out.append((start, w, true))
+                continue
+            }
+            guard let c = p.code else {
+                w -= p.number / 1000 * size * hScale
+                out.append((start, w, false))
+                continue
+            }
+            let f = p.look?.page?.font ?? font
+            let glyph: Double = f.widthOf(c) / 1000 * size * hScale
+            let spacing: Double = charSpacing + (!f.twoByte && c == 32 ? wordSpacing : 0)
+            w += glyph + spacing * hScale
+            out.append((start, start + glyph, true))
+        }
+        return out
+    }
+
     /// How far parts advance and where their last glyph's ink ends (text space), and whether they have any ink.
     func measure(_ parts: [ContentEditor.Part]) -> (advance: Double, end: Double, inked: Bool) {
         guard let font else { return (0, 0, false) }
@@ -127,6 +156,12 @@ public struct PageContent: Sendable {
     public var images: [PageImage]
     /// The page's text runs grouped into paragraphs (see `ContentEditor.groupParagraphs`), turned text in its own direction.
     public var paragraphs: [TextParagraph] = []
+    /// For a translated copy: the rules the page draws under its words that are no link's (`ContentEditor.plainUnderlines`).
+    var underlines: [ContentEditor.Underline] = [] {
+        didSet { underlinedRuns = Set(underlines.flatMap { $0.runs.map(\.key) }) }
+    }
+    /// The runs `underlines` underline, by their keys (`TextRun.key`).
+    private(set) var underlinedRuns = Set<Int>()
 
     public init(runs: [TextRun], images: [PageImage]) {
         self.runs = runs
@@ -241,6 +276,9 @@ public enum ContentEditor {
         guard let now, let info = walked.runs[now.id], let font = now.font, let fontDict = walked.fontDicts[ObjectIdentifier(font)] else {
             throw ContentEditError(loc("The page changed since this text was picked. Pick it again."))
         }
+        // Right-to-left letters drawn left to right are read in reading order; written back from the edit as drawn, they
+        // would come out mirrored.
+        if info.columns == 1 && reordered(info, now) { throw ContentEditError(loc("This text can't be edited: {0}.", rightToLeftBlocked)) }
 
         let planned = plan(info, now, text)
         if !planned.missing.isEmpty { throw missingGlyphs(font, planned.missing) }
@@ -768,6 +806,38 @@ public enum ContentEditor {
     }
 
     /// One glyph or TJ adjustment of a run, with the text it stands for (as UTF-16 units); where it starts along the
+    /// The text of an operator's items (or a column's), right-to-left letters drawn left to right put in reading order
+    /// (`drawnLeftToRight`).
+    static func inReadingOrder(_ items: [RunItem]) -> String {
+        let text = String(decoding: items.flatMap(\.units), as: UTF16.self)
+        return drawnLeftToRight(items, text) ? Bidi.toReadingOrder(text) : text
+    }
+
+    /// Whether an operator's text was put in reading order: the single-run editor writes its items as drawn, so it can't
+    /// edit such a run.
+    static func reordered(_ info: RunInfo, _ run: TextRun) -> Bool {
+        Array(run.text.utf16) != info.items.flatMap(\.units)
+    }
+
+    /// Whether an operator's text has right-to-left letters and its glyphs go left to right, never back (visual order),
+    /// most of them clear of the one before: a letter and the mark on it drawn in reading order also go right, but over
+    /// each other.
+    private static func drawnLeftToRight(_ items: [RunItem], _ text: String) -> Bool {
+        let rtl = text.utf16.contains { (0x0590...0x08FF).contains($0) || (0xFB1D...0xFDFF).contains($0) || (0xFE70...0xFEFF).contains($0) }
+        if !rtl { return false }
+        var last: RunItem?
+        var pairs = 0, clear = 0
+        for item in items where !item.isNumber && !item.units.isEmpty {
+            if let l = last {
+                if item.at < l.at - 1e-6 { return false }
+                pairs += 1
+                if item.at >= l.inkEnd - 0.1 * (l.inkEnd - l.at) { clear += 1 }
+            }
+            last = item
+        }
+        return pairs > 0 && 2 * clear > pairs
+    }
+
     /// operator (`at`) and, for a glyph, where its ink ends (`inkEnd`): text space, from where the operator starts.
     struct RunItem: Sendable {
         var code: Int
@@ -939,7 +1009,8 @@ public enum ContentEditor {
     private static var formImageBlocked: String {
         loc("it is part of a form XObject (a drawing the page reuses), and only the page's own pictures can be edited in this version")
     }
-    private static var actualTextBlocked: String {
+    static var rightToLeftBlocked: String { loc("it is written right to left, and this version rewraps left-to-right text only") }
+    static var actualTextBlocked: String {
         loc("it carries replacement text for copying and reading aloud (ActualText) that an edit would leave wrong")
     }
 
@@ -1286,7 +1357,10 @@ public enum ContentEditor {
         let vscale = (vx * vx + vy * vy).squareRoot()
         let angle: Double = atan2(by, bx) * 180 / .pi
         let isUpright = upright(bx, by, vx, vy)
-        let text = String(decoding: items.flatMap(\.units), as: UTF16.self)
+        // Right-to-left letters an operator draws left to right (visual order: Word's PDFs, a translated copy's lines) are
+        // read in reading order, as MuPDF reads them; drawn in reading order (moving back as it goes), they are read as
+        // they are. A column of an operator drawing several is read so on its own (inReadingOrder in make).
+        let text = inReadingOrder(items)
 
         var why = blocked
         if why == nil {
@@ -1333,7 +1407,7 @@ public enum ContentEditor {
                 }
             }
             let mine = from == 0 && to == items.count ? items : Array(items[from..<to])
-            let runText = columns == 1 ? text : String(decoding: mine.flatMap(\.units), as: UTF16.self)
+            let runText = columns == 1 ? text : inReadingOrder(mine)
             let far: Double = max(end, high)
             let box = boxOf(w.frame, place, low, desc, far, asc)
             let o = project(w.frame, place, 0, 0)

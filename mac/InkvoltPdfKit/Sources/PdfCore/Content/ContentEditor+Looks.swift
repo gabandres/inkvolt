@@ -10,24 +10,35 @@ public struct TextLook: Sendable, Hashable {
     public var bold: Bool?
     public var italic: Bool?
     public var script: TextScript?
+    /// A script's baseline above the line's (below: negative), in ems of the paragraph's text; nil: the usual for a script
+    /// (`ContentEditor.superRise`, `subRise`).
+    public var rise: Double?
+    /// Underlined by a rule the page draws under the words (a translated copy draws it again under their translation;
+    /// the paragraph editor doesn't draw one).
+    public var underline: Bool?
 
-    public init(font: String? = nil, size: Double? = nil, color: Int? = nil, bold: Bool? = nil, italic: Bool? = nil, script: TextScript? = nil) {
+    public init(font: String? = nil, size: Double? = nil, color: Int? = nil, bold: Bool? = nil, italic: Bool? = nil, script: TextScript? = nil,
+                rise: Double? = nil, underline: Bool? = nil) {
         self.font = font
         self.size = size
         self.color = color
         self.bold = bold
         self.italic = italic
         self.script = script
+        self.rise = rise
+        self.underline = underline
     }
 
     public static let plain = TextLook()
 
-    public var isPlain: Bool { font == nil && size == nil && color == nil && bold == nil && italic == nil && script == nil }
+    public var isPlain: Bool {
+        font == nil && size == nil && color == nil && bold == nil && italic == nil && script == nil && rise == nil && underline == nil
+    }
 
     /// This look with what `other` sets laid over it.
     public func with(_ other: TextLook) -> TextLook {
         TextLook(font: other.font ?? font, size: other.size ?? size, color: other.color ?? color, bold: other.bold ?? bold,
-                 italic: other.italic ?? italic, script: other.script ?? script)
+                 italic: other.italic ?? italic, script: other.script ?? script, rise: other.rise ?? rise, underline: other.underline ?? underline)
     }
 }
 
@@ -63,13 +74,17 @@ extension ContentEditor {
         var bold: Bool?
         var italic: Bool?
         var script: TextScript?
+        var rise: Double?
 
         static func read(_ props: CObj) -> LookTag {
             let font = props["Font"].flatMap { $0.kind == .string ? String(decoding: $0.bytes, as: UTF8.self) : nil }
             func flag(_ key: String) -> Bool? { props[key].flatMap { $0.kind == .bool ? $0.name == "true" : nil } }
             var script: TextScript?
             if let s = props["Script"], s.kind == .name { script = s.name == "Sub" ? .sub : s.name == "Super" ? .superscript : nil }
-            return LookTag(font: font, bold: flag("Bold"), italic: flag("Italic"), script: script)
+            // A script's own rise, held to what a script's can be (the tag is the page's: anything can be in it).
+            var rise: Double?
+            if let script, let n = props["Rise"], n.kind == .number, n.num.isFinite { rise = scriptRise(script, n.num) }
+            return LookTag(font: font, bold: flag("Bold"), italic: flag("Italic"), script: script, rise: rise)
         }
 
         static func write(_ look: TextLook) -> String {
@@ -78,6 +93,7 @@ extension ContentEditor {
             if let b = look.bold { sb += " /Bold " + (b ? "true" : "false") }
             if let i = look.italic { sb += " /Italic " + (i ? "true" : "false") }
             if let s = look.script { sb += " /Script " + (s == .sub ? "/Sub" : "/Super") }
+            if look.script != nil, let rise = look.rise { sb += " /Rise " + ContentLexer.number(rise) }
             return sb + " >> BDC "
         }
     }
@@ -103,6 +119,12 @@ extension ContentEditor {
     /// A subscript's or superscript's size against its line's text, and how far its baseline moves (ems of the line's
     /// text, up positive).
     static let scriptScale = 0.7, subRise = -0.15, superRise = 0.35
+
+    /// A script's rise as read from a page or a tag, held to what a script's can be (ems, rounded to a hundredth).
+    static func scriptRise(_ script: TextScript, _ rise: Double) -> Double {
+        let held = script == .sub ? min(max(rise, -0.6), -0.08) : min(max(rise, 0.12), 0.9)
+        return (held * 100).rounded(.toNearestOrEven) / 100
+    }
 
     /// The look of each UTF-16 unit of `text` (nil: the paragraph's own), later spans over earlier ones.
     static func looksOf(_ text: [UInt16], _ spans: [TextSpan]?) -> [TextLook?] {
@@ -130,7 +152,7 @@ extension ContentEditor {
             let color: Int? = r.color != lead.color ? r.color : nil
             let look: TextLook
             if let tag = r.tag {
-                look = TextLook(font: tag.font, size: size, color: color, bold: tag.bold, italic: tag.italic, script: tag.script)
+                look = TextLook(font: tag.font, size: size, color: color, bold: tag.bold, italic: tag.italic, script: tag.script, rise: tag.rise)
             } else if !r.standIn && r.font != nil && !sameFamily(r, lead) {
                 look = TextLook(font: FontNames.family(r.fontName), size: size, color: color, bold: r.bold != lead.bold ? r.bold : nil,
                                 italic: r.italic != lead.italic ? r.italic : nil)

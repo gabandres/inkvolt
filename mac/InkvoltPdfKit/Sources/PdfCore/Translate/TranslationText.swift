@@ -58,14 +58,17 @@ public enum TranslationText {
 
     private static let firm = " Your last answer couldn't be used. Give only the translation of this one paragraph, as one paragraph."
 
-    private static let tagged = " The text marks some words with the tags <b> (bold), <i> (italic), <sub> (subscript) and <sup> (superscript): " +
-        "put each pair of tags around the words of your translation that translate the words it marks, and add no other tags or markup."
+    private static let tagged = " The text marks some words with the tags {0}: put each pair of tags around the words of your translation that " +
+        "translate the words it marks, and add no other tags or markup."
 
-    /// The request for a paragraph or a piece of one. Nothing else about the document goes with it. `firm`: it asks
-    /// again, more firmly, after an answer that couldn't be used; `marked`: the text carries its paragraph's looks as
-    /// markup (`TranslationJob.marked`).
+    /// The request for a paragraph or a piece of one. Nothing else about the document goes with it. A marked text's
+    /// request names the tags it has, and only those: a model told of a <font> it wasn't sent wrote one with a color in
+    /// it. `firm`: it asks again, more firmly, after an answer that couldn't be used; `marked`: the text carries its
+    /// paragraph's looks as markup (`TranslationJob.marked`).
     public static func request(_ text: String, _ language: String, firm: Bool = false, marked: Bool = false) -> [AiMessage] {
-        let prompt = system.replacingOccurrences(of: "{0}", with: sanitized(language)) + (marked ? tagged : "") + (firm ? self.firm : "")
+        let named = marked ? TranslationMarkup.tagsNamed(text) : ""
+        let tags = named.isEmpty ? "" : tagged.replacingOccurrences(of: "{0}", with: named)
+        let prompt = system.replacingOccurrences(of: "{0}", with: sanitized(language)) + tags + (firm ? self.firm : "")
         return [.system(prompt), .user(text)]
     }
 
@@ -156,9 +159,9 @@ public enum TranslationText {
         text = characters(text)
         // Text sent with markup (TranslationMarkup) keeps its tags, read when the copy is written; any other tag goes.
         if marked {
-            text = TranslationMarkup.withoutOtherTags(text)
+            text = TranslationMarkup.withoutOtherTags(text, source)
         } else if !source.contains("<") {
-            text = tags.replace(text, "")
+            text = tags.replaceMatches(text) { m, ns in TranslationMarkup.unwrapped(ns, m) }
         }
         if !own.contains("&") { text = htmlDecode(text) }
         if !own.contains("**") { text = text.replacingOccurrences(of: "**", with: "") }
@@ -170,6 +173,8 @@ public enum TranslationText {
         text = collapse(text)
         text = unquoted(text, own)
         if text.isEmpty { return (nil, loc("its answer was empty")) }
+        // Words gone, only marks left: a model's "<Aidan N. Gomez></sup>∗ †" loses the name as a tag would.
+        if hasWords(own) && !(marked ? TranslationMarkup.plain(text) : text).utf16.contains(where: { isLetter($0) }) { return (nil, loc("its answer was empty")) }
         if text.utf16.count > maxReplyChars(source) { return (nil, loc("its answer was far longer than the text")) }
         if source.utf16.count >= 200 && text.utf16.count < source.utf16.count / 12 { return (nil, loc("its answer was far shorter than the text")) }
         return (text, nil)

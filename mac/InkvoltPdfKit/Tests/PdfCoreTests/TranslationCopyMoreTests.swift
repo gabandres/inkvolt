@@ -103,10 +103,18 @@ import Testing
         #expect(Self.bluePixels(r.data!, RectD(0, 0, 612, 792)) == 0)
     }
 
-    @Test func anUnderlineThatBelongsToNoLinkStaysAsDrawn() throws {
+    @Test func anUnderlineThatBelongsToNoLinkGoesWithItsWordsAsALook() throws {
         let (pdf, underlines) = Self.linkedParagraph(["QUICK FOX 42"], annotate: false)
-        let (_, r) = try T.translate(pdf) { _ in Self.keepsQuickFox }
-        #expect(Self.bluePixels(r.data!, Self.taller(underlines[0])) > 0)
+        let marked = "<u><span>QUICK FOX 42</span></u>" // underlined, and blue
+        let (plan, r) = try T.translate(pdf) { _ in Self.keepsQuickFox.replacingOccurrences(of: "QUICK FOX 42", with: marked) }
+        #expect(plan.texts.count == 1 && plan.texts[0].text.contains(marked), "\(plan.texts.map(\.text))")
+        let hits = Self.found(r.data!, "QUICK FOX 42").hits
+        #expect(hits.count == 1)
+        let words = try #require(hits.first)
+        #expect(Self.bluePixels(r.data!, .fromEdges(words.x + 1, words.centerY, words.right - 1, words.bottom + 6)) > 0)
+        if Self.taller(underlines[0]).intersect(.fromEdges(words.x, words.y, words.right, words.bottom + 6)).isEmpty {
+            #expect(Self.bluePixels(r.data!, Self.taller(underlines[0])) == 0)
+        }
     }
 
     @Test func aLinksUnderlineInAColorThatCantBeDrawnAgainStaysAsDrawn() throws {

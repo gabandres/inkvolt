@@ -3,7 +3,9 @@ import CoreText
 import Foundation
 
 /// A glyph placed on a line: its origin (offsets applied) in ems from the line's start, the text it stands for, and
-/// whether it belongs to a right-to-left run.
+/// whether it belongs to a right-to-left run (in a line written `GlyphOrder.stretches`, not a hyphen or other character
+/// MuPDF always reads left to right, which goes on its own); a styled line's glyph also its size against the line's
+/// (`scale`) and its color (nil: the text's own).
 struct PlacedGlyph {
     var font: TrueTypeFont
     var glyph: Int
@@ -11,9 +13,34 @@ struct PlacedGlyph {
     var y: Double
     var text: String
     var rtl = false
+    var scale = 1.0
+    var color: Int?
 }
 
-/// A shaped line: glyphs in the order they are written to the content stream (logical order), and its advance width in
+/// How a stretch of a styled line is drawn (`TextShaper.shape(_:_:_:_:_:)`): the font it asks for (nil: the line's), its
+/// size against the line's, how far its baseline rises (ems of the line's size, down negative), its color (nil: the
+/// text's own).
+struct GlyphStyle {
+    var font: TrueTypeFont?
+    var scale = 1.0
+    var rise = 0.0
+    var color: Int?
+}
+
+/// The order a shaped line's glyphs are written to the content stream, which is the order a reader that goes by the
+/// content (MuPDF, pdf.js) takes them in.
+enum GlyphOrder {
+    /// Reading order: right-to-left runs last glyph first, runs as typed.
+    case logical
+    /// Left to right, as drawn.
+    case visual
+    /// Each right-to-left stretch left to right, the stretches and the left-to-right runs between them in reading order,
+    /// so that MuPDF and pdf.js both read the line in order and pdf.js reads the spaces between its right-to-left words
+    /// (`TextShaper`'s notes); a line where that can't hold is written `logical`.
+    case stretches
+}
+
+/// A shaped line: glyphs in the order they are written to the content stream (`GlyphOrder`), and its advance width in
 /// ems.
 struct ShapedLine {
     var text: String
@@ -21,8 +48,12 @@ struct ShapedLine {
     var width: Double
     /// The paragraph direction is right to left (its first strong character).
     var rtl: Bool
-    /// Glyphs in logical order with both left-to-right and right-to-left runs (see `Type3FontWriter.emit`).
+    /// Written with its directions marked where they change (see `Type3FontWriter.emit`): glyphs in logical order with
+    /// both left-to-right and right-to-left runs, or a line written `GlyphOrder.stretches`.
     var mixed = false
+    /// A styled line's runs left to right: the style each is in (its index; -1: none) and where it starts and ends, in
+    /// ems from the line's start.
+    var runs: [(style: Int, start: Double, end: Double)] = []
 }
 
 /// Lays a line of Unicode text out for PDF (the Windows app's `TextShaper`). Windows runs its own bidi, picks a font per
@@ -33,29 +64,95 @@ struct ShapedLine {
 enum TextShaper {
     static func measure(_ text: String, _ primary: TrueTypeFont?) -> Double { shape(text, primary).width }
 
-    /// - Parameter visualOrder: write the glyphs left to right (visual order) instead of in logical order.
-    static func shape(_ text: String, _ primary: TrueTypeFont?, visualOrder: Bool = false) -> ShapedLine {
-        if text.isEmpty { return ShapedLine(text: text, glyphs: [], width: 0, rtl: false) }
-        let para = Bidi.levels(text).paragraph
-        let units = Array(text.utf16)
-        let line = makeLine(text, primary, rtl: para == 1)
-        let width = Double(CTLineGetTypographicBounds(line, nil, nil, nil)) / 1000
-
-        var runs: [(start: Int, x: Double, rtl: Bool, glyphs: [PlacedGlyph])] = []
-        for run in (CTLineGetGlyphRuns(line) as? [CTRun]) ?? [] {
-            if let shaped = shapeRun(run, units) { runs.append(shaped) }
-        }
-        if visualOrder {
-            runs.sort { $0.x < $1.x }
-            let glyphs = runs.flatMap { $0.rtl ? Array($0.glyphs.reversed()) : $0.glyphs }
-            return ShapedLine(text: text, glyphs: glyphs, width: width, rtl: para == 1)
-        }
-        runs.sort { $0.start < $1.start }
-        let mixed = runs.contains { $0.rtl } && runs.contains { !$0.rtl }
-        return ShapedLine(text: text, glyphs: runs.flatMap(\.glyphs), width: width, rtl: para == 1, mixed: mixed)
+    /// The advance width in ems of the line `shape(_:_:_:_:_:)` draws, without putting its glyphs in the order they are
+    /// written (wrapping measures many candidate lines).
+    static func measure(_ text: String, _ primary: TrueTypeFont?, _ styles: [GlyphStyle]?, _ styleAt: [Int]?, _ written: GlyphOrder) -> Double {
+        shape(text, primary, styles, styleAt, written, measure: true).width
     }
 
-    private static func makeLine(_ text: String, _ primary: TrueTypeFont?, rtl: Bool) -> CTLine {
+    /// - Parameter visualOrder: write the glyphs left to right (visual order) instead of in logical order.
+    static func shape(_ text: String, _ primary: TrueTypeFont?, visualOrder: Bool = false) -> ShapedLine {
+        shape(text, primary, nil, nil, visualOrder ? .visual : .logical)
+    }
+
+    /// A line whose stretches are drawn in styles of their own (`styles`; `styleAt` gives each UTF-16 unit's): Core Text
+    /// shapes each stretch in its style's font (characters it lacks from the fallbacks) at its size, in one line, so the
+    /// line's bidi order is kept across them and a bold or red word inside right-to-left text sits where it reads; each
+    /// glyph then takes its style's rise and color. `written`: the order the glyphs are written in.
+    static func shape(_ text: String, _ primary: TrueTypeFont?, _ styles: [GlyphStyle]?, _ styleAt: [Int]?, _ written: GlyphOrder = .logical) -> ShapedLine {
+        shape(text, primary, styles, styleAt, written, measure: false)
+    }
+
+    /// `measure`: only the width is wanted: the glyphs aren't put in written order.
+    private static func shape(_ text: String, _ primary: TrueTypeFont?, _ styles: [GlyphStyle]?, _ styleAt: [Int]?, _ written: GlyphOrder,
+                              measure: Bool) -> ShapedLine {
+        if text.isEmpty { return ShapedLine(text: text, glyphs: [], width: 0, rtl: false) }
+        let units = Array(text.utf16)
+        let bidi = Bidi.levels(text)
+        var levels = bidi.levels
+        let para = bidi.paragraph
+        let joined = written == .stretches ? joinLeftToRight(units, &levels) : []
+        func styleOf(_ i: Int) -> Int {
+            guard let styles, let styleAt, i < styleAt.count, styleAt[i] >= 0, styleAt[i] < styles.count else { return -1 }
+            return styleAt[i]
+        }
+        let line = makeLine(text, primary, rtl: para == 1, styles: styles, styleOf, joined)
+        let width = Double(CTLineGetTypographicBounds(line, nil, nil, nil)) / 1000
+        if measure { return ShapedLine(text: text, glyphs: [], width: width, rtl: para == 1) }
+
+        var runs: [ShapedRun] = []
+        for run in (CTLineGetGlyphRuns(line) as? [CTRun]) ?? [] {
+            guard var shaped = shapeRun(run, units) else { continue }
+            if shaped.style >= 0, let look = styles?[shaped.style] {
+                let (scale, rise) = sizeOf(look)
+                for k in shaped.glyphs.indices {
+                    shaped.glyphs[k].y += rise
+                    shaped.glyphs[k].scale = scale
+                    shaped.glyphs[k].color = look.color
+                }
+            }
+            runs.append(shaped)
+        }
+        let placedRuns = runs.sorted { $0.x < $1.x }.map { (style: $0.style, start: $0.x, end: $0.end) }
+        let logical = runs.sorted { $0.start < $1.start }
+        let stretches = written == .stretches && runs.contains { $0.rtl } && stretchesRead(logical, levels, styles)
+        if written == .visual || stretches {
+            // A right-to-left run's glyphs go left to right, and a glyph standing for several characters (a ligature's
+            // "لى", a letter and its mark) holds them backwards too: readers reverse the run character by character
+            // (MuPDF, pdf.js, `Bidi.toReadingOrder`), which then gives them back in reading order.
+            var drawn = logical
+            for k in drawn.indices where drawn[k].rtl {
+                drawn[k].glyphs.reverse()
+                for g in drawn[k].glyphs.indices where drawn[k].glyphs[g].text.unicodeScalars.count > 1 {
+                    drawn[k].glyphs[g].text = String(String.UnicodeScalarView(drawn[k].glyphs[g].text.unicodeScalars.reversed()))
+                }
+            }
+            if !stretches {
+                let glyphs = drawn.sorted { $0.x < $1.x }.flatMap(\.glyphs)
+                return ShapedLine(text: text, glyphs: glyphs, width: width, rtl: para == 1, runs: placedRuns)
+            }
+            return ShapedLine(text: text, glyphs: inStretches(drawn), width: width, rtl: para == 1, mixed: true, runs: placedRuns)
+        }
+        let mixed = runs.contains { $0.rtl } && runs.contains { !$0.rtl }
+        return ShapedLine(text: text, glyphs: logical.flatMap(\.glyphs), width: width, rtl: para == 1, mixed: mixed, runs: placedRuns)
+    }
+
+    /// One Core Text run as shaped: where its text starts, its left and right ends (ems from the line's start), its
+    /// direction, its style (-1: none) and its glyphs in logical order.
+    private struct ShapedRun {
+        var start: Int
+        var x: Double
+        var end: Double
+        var rtl: Bool
+        var style: Int
+        var glyphs: [PlacedGlyph]
+    }
+
+    /// The attribute naming a stretch's style, so Core Text keeps each style's glyphs in runs of their own.
+    private static let styleKey = NSAttributedString.Key("InkvoltGlyphStyle")
+
+    private static func makeLine(_ text: String, _ primary: TrueTypeFont?, rtl: Bool, styles: [GlyphStyle]? = nil, _ styleOf: (Int) -> Int = { _ in -1 },
+                                 _ leftToRight: [Range<Int>] = []) -> CTLine {
         let font = (primary ?? SystemFonts.get("arial.ttf"))?.font ?? CTFontCreateWithName("Helvetica" as CFString, 1000, nil)
         var direction: CTWritingDirection = rtl ? .rightToLeft : .leftToRight
         let style = withUnsafeBytes(of: &direction) { raw -> CTParagraphStyle in
@@ -66,12 +163,152 @@ enum TextShaper {
             NSAttributedString.Key(kCTFontAttributeName as String): font,
             NSAttributedString.Key(kCTParagraphStyleAttributeName as String): style,
         ]
-        return CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: attributes) as CFAttributedString)
+        let string = NSMutableAttributedString(string: text, attributes: attributes)
+        if let styles {
+            let n = (text as NSString).length
+            var i = 0
+            while i < n {
+                let k = styleOf(i)
+                var j = i + 1
+                while j < n && styleOf(j) == k { j += 1 }
+                if k >= 0 {
+                    let look = styles[k]
+                    let base = look.font?.font ?? font
+                    let sized = CTFontCreateCopyWithAttributes(base, 1000 * sizeOf(look).scale, nil, nil)
+                    string.addAttributes([NSAttributedString.Key(kCTFontAttributeName as String): sized, styleKey: k], range: NSRange(location: i, length: j - i))
+                }
+                i = j
+            }
+        }
+        // A version inside right-to-left text ("2.0-beta"): one left-to-right embedding, so it is drawn whole as typed.
+        for r in leftToRight {
+            let embedding = [NSNumber(value: CTWritingDirection.leftToRight.rawValue)] // left to right, embedding (not override)
+            string.addAttribute(NSAttributedString.Key(kCTWritingDirectionAttributeName as String), value: embedding,
+                                range: NSRange(location: r.lowerBound, length: r.count))
+        }
+        return CTLineCreateWithAttributedString(string as CFAttributedString)
+    }
+
+    /// A style's size against the line's and its rise as drawn: a size not above zero or not finite is the line's, a rise
+    /// not finite none.
+    private static func sizeOf(_ look: GlyphStyle) -> (scale: Double, rise: Double) {
+        (look.scale > 0 && look.scale.isFinite ? look.scale : 1, look.rise.isFinite ? look.rise : 0)
+    }
+
+    // ---- Right-to-left stretches written left to right (GlyphOrder.stretches) ----
+    //
+    // pdf.js makes a space only where the next glyph lies to the right of the one before, inside one item it reads (a
+    // stretch of one font and size, its glyphs going right), and puts each item's characters in reading order itself. A
+    // line written in reading order goes left for every right-to-left glyph: pdf.js reads its words run together.
+    // MuPDF (the app's own reading: search, copy, export) gives each character a direction from its Unicode class
+    // (Arabic and Hebrew letters and Arabic digits right to left; Latin letters, European digits, "+", "-", "%" and the
+    // like left to right; spaces and other punctuation that of the character before) and, on a line whose right-to-left
+    // glyphs go right, turns each stretch of right-to-left characters around where it stands; it never moves one past a
+    // left-to-right run. So a line reads in order in both when each right-to-left stretch is written left to right and
+    // the stretches and the left-to-right runs between them come in reading order (the Windows app's notes in
+    // `Shaping.cs`, ported as they are).
+
+    /// Whether a line can be written `GlyphOrder.stretches` (`runs` in logical order): each right-to-left stretch in one
+    /// font, size and rise (pdf.js reads a change of font or size as a new item, and a stretch's items written left to
+    /// right would come out right to left), no left-to-right run holding a character MuPDF reads right to left (Arabic
+    /// digits: it would turn them around), no deeper embedding than a left-to-right run inside right-to-left text.
+    private static func stretchesRead(_ runs: [ShapedRun], _ levels: [UInt8], _ styles: [GlyphStyle]?) -> Bool {
+        if (levels.max() ?? 0) > 2 { return false }
+        func size(_ style: Int) -> (Double, Double) { sizeOf(style >= 0 && styles != nil ? styles![style] : GlyphStyle()) }
+        for (i, r) in runs.enumerated() {
+            if !r.rtl {
+                if r.glyphs.contains(where: { muPdfReadsRightToLeft($0.text) == true }) { return false }
+            } else if i > 0 && runs[i - 1].rtl {
+                let a = runs[i - 1], fontA = a.glyphs.first?.font, fontB = r.glyphs.first?.font
+                if fontA !== fontB || size(a.style) != size(r.style) { return false }
+            }
+        }
+        return true
+    }
+
+    /// For a line written `GlyphOrder.stretches`: punctuation inside a word between a Latin letter or a European digit on
+    /// either side ("2.0-beta", "3.5-rc2", "a_b") goes with them, left to right, as one run. The bidi rules leave such a
+    /// "-" or "_" right to left between a number and a word in right-to-left text, drawing "beta-2.0", and MuPDF, which
+    /// reads them all left to right, can read that only as a new line ("2.0", "-", "beta"); kept whole it reads
+    /// "2.0-beta" in MuPDF and pdf.js, as typed. The levels are changed as Windows changes them; Core Text, which runs its
+    /// own bidi, is given each such word (all of it: a part alone would leave its figures on their own) as a
+    /// left-to-right embedding.
+    private static func joinLeftToRight(_ u: [UInt16], _ levels: inout [UInt8]) -> [Range<Int>] {
+        func cls(_ c: UInt16) -> Bidi.Cls { Bidi.classify(UInt32(c)) }
+        func leftToRight(_ c: UInt16) -> Bool { cls(c) == .L || cls(c) == .EN }
+        func between(_ c: UInt16) -> Bool {
+            !(Unicode.Scalar(c)?.properties.isWhitespace ?? false) && [.ES, .ET, .CS, .ON].contains(cls(c))
+        }
+        var words: [Range<Int>] = []
+        var i = 1
+        while i < u.count {
+            defer { i += 1 }
+            if levels[i] % 2 == 0 || !between(u[i]) || levels[i - 1] % 2 == 1 || !leftToRight(u[i - 1]) { continue }
+            var j = i
+            while j < u.count && levels[j] % 2 == 1 && between(u[j]) { j += 1 }
+            if j < u.count && levels[j] % 2 == 0 && leftToRight(u[j]) {
+                for k in i..<j { levels[k] = min(levels[i - 1], levels[j]) }
+                // The whole word, out to the spaces (or right-to-left letters) on either side.
+                var lo = i - 1, hi = j + 1
+                while lo > 0 && (leftToRight(u[lo - 1]) || between(u[lo - 1])) { lo -= 1 }
+                while hi < u.count && (leftToRight(u[hi]) || between(u[hi])) { hi += 1 }
+                if let last = words.last, last.upperBound >= lo { words[words.count - 1] = last.lowerBound..<max(last.upperBound, hi) } else { words.append(lo..<hi) }
+            }
+            i = j - 1
+        }
+        return words
+    }
+
+    /// The direction MuPDF gives a glyph's text (by its first character's class): true right to left (R, AL, AN), false
+    /// left to right (L, EN, ES, ET), nil that of the character before.
+    private static func muPdfReadsRightToLeft(_ text: String) -> Bool? {
+        guard let first = text.unicodeScalars.first else { return nil }
+        switch Bidi.classify(first.value) {
+        case .R, .AL, .AN: return true
+        case .L, .EN, .ES, .ET: return false
+        default: return nil
+        }
+    }
+
+    /// A line's glyphs in `GlyphOrder.stretches` order: `runs` in logical order, each run's glyphs left to right. A
+    /// character MuPDF always reads left to right inside a right-to-left stretch (a hyphen between two Arabic words) goes
+    /// on its own, marked left to right, between the pieces of the stretch on either side of it, in reading order. Two or
+    /// more side by side ("--") go one by one in reading order too: each a short step back, which MuPDF keeps on the line
+    /// (written left to right, it would read them backwards).
+    private static func inStretches(_ runs: [ShapedRun]) -> [PlacedGlyph] {
+        var written: [PlacedGlyph] = []
+        var i = 0
+        while i < runs.count {
+            let odd = runs[i].rtl
+            var j = i + 1
+            while j < runs.count && runs[j].rtl == odd { j += 1 }
+            let glyphs = runs[i..<j].sorted { $0.x < $1.x }.flatMap(\.glyphs)
+            i = j
+            if !odd {
+                written += glyphs
+                continue
+            }
+            // Right to left: its pieces from the right, each written left to right.
+            var end = glyphs.count
+            var g = glyphs.count - 1
+            while g >= -1 {
+                defer { g -= 1 }
+                if g >= 0 && muPdfReadsRightToLeft(glyphs[g].text) != false { continue }
+                written += glyphs[(g + 1)..<end]
+                if g >= 0 {
+                    var alone = glyphs[g]
+                    alone.rtl = false
+                    written.append(alone)
+                }
+                end = g
+            }
+        }
+        return written
     }
 
     /// One Core Text run: its glyphs in logical order (a right-to-left run last glyph first), each with the text of its
     /// cluster (one character per glyph, the rest on the cluster's last glyph, as Windows hands HarfBuzz's clusters out).
-    private static func shapeRun(_ run: CTRun, _ units: [UInt16]) -> (start: Int, x: Double, rtl: Bool, glyphs: [PlacedGlyph])? {
+    private static func shapeRun(_ run: CTRun, _ units: [UInt16]) -> ShapedRun? {
         let count = CTRunGetGlyphCount(run)
         if count == 0 { return nil }
         var ids = [CGGlyph](repeating: 0, count: count)
@@ -86,6 +323,8 @@ enum TextShaper {
         let attributes = CTRunGetAttributes(run) as NSDictionary
         guard let ctFont = attributes[kCTFontAttributeName as String] else { return nil }
         let font = SystemFonts.wrap(ctFont as! CTFont)
+        let style = (attributes[styleKey.rawValue] as? Int) ?? -1
+        let runWidth = Double(CTRunGetTypographicBounds(run, CFRange(location: 0, length: 0), nil, nil, nil)) / 1000
 
         // Glyphs as Core Text stores them (visual order), without the ones shaping deleted.
         var placed: [(glyph: Int, x: Double, y: Double, index: Int)] = []
@@ -131,7 +370,7 @@ enum TextShaper {
             let t = i < n - 1 ? (i < parts.count ? parts[i] : "") : parts.dropFirst(i).joined()
             glyphs.append(PlacedGlyph(font: font, glyph: p.glyph, x: p.x, y: p.y, text: t, rtl: rtl))
         }
-        return (runStart, minX, rtl, glyphs)
+        return ShapedRun(start: runStart, x: minX, end: minX + runWidth, rtl: rtl, style: style, glyphs: glyphs)
     }
 }
 
@@ -211,13 +450,16 @@ final class Type3FontWriter {
     /// /ActualText: it sets the direction the run's leading spaces inherit, and extraction leaves it out.
     /// - Parameter baseRise: the text rise in effect (a paragraph's own, or a script's): glyphs are raised from it, and it
     ///   is set back after.
-    func emit(_ sb: inout String, _ line: ShapedLine, size: Double, baseRise: Double = 0) {
+    /// - Parameter ownFill: the fill operator the text is in ("0 g"), set back after a styled glyph's own color; nil:
+    ///   colors aren't changed.
+    func emit(_ sb: inout String, _ line: ShapedLine, size: Double, baseRise: Double = 0, ownFill: String? = nil) {
         // A cluster drawn with more glyphs than it has characters leaves glyphs with no text of their own: the line's
         // /ActualText then gives extraction the exact string.
         let actual = line.glyphs.contains { $0.text.isEmpty }
         if actual { sb += "/Span <</ActualText <FEFF\(Self.utf16Hex(line.text))>>> BDC " }
         var cur: Used?
-        var pen = 0.0, rise = baseRise
+        var pen = 0.0, rise = baseRise, scale = 1.0 // pen: thousandths of the line's size; scale: the size set against it
+        var color: Int?
         var open = false
         func close(_ sb: inout String) {
             if open { sb += "] TJ " }
@@ -228,18 +470,26 @@ final class Type3FontWriter {
             if line.mixed && direction != g.rtl {
                 close(&sb)
                 let (u, mark) = code(g.font, g.font.glyphOf(32), g.rtl ? Self.rlm : Self.lrm)
-                if u !== cur {
-                    sb += "\(u.name) \(PdfNum.f(size)) Tf "
+                if u !== cur || abs(g.scale - scale) > 1e-9 {
+                    sb += "\(u.name) \(PdfNum.f(size * g.scale)) Tf "
                     cur = u
+                    scale = g.scale
                 }
                 sb += "/Span <</ActualText ()>> BDC <\(Self.hex2(mark))> Tj EMC "
                 direction = g.rtl
             }
             let (u, c) = code(g.font, g.glyph, g.text)
-            if u !== cur {
+            if u !== cur || abs(g.scale - scale) > 1e-9 {
                 close(&sb)
-                sb += "\(u.name) \(PdfNum.f(size)) Tf "
+                sb += "\(u.name) \(PdfNum.f(size * g.scale)) Tf "
                 cur = u
+                scale = g.scale
+            }
+            let want = ownFill == nil ? nil : g.color
+            if want != color {
+                close(&sb)
+                sb += want.map { ContentEditor.rgbOp($0) } ?? (ownFill! + " ")
+                color = want
             }
             let y: Double = baseRise + g.y * size
             if abs(y - rise) > 0.001 {
@@ -250,12 +500,14 @@ final class Type3FontWriter {
             if !open { sb += "[" }
             open = true
             let target = g.x * 1000
-            let adjust = pen - target
+            let adjust = (pen - target) / scale // in thousandths of the size set
             if abs(adjust) >= 0.001 { sb += PdfNum.f(adjust) + " " }
             sb += "<\(Self.hex2(c))>"
-            pen = target + Self.width(g.font, g.glyph)
+            pen = target + Self.width(g.font, g.glyph) * scale
         }
         close(&sb)
+        if color != nil, let ownFill { sb += ownFill + " " }
+        if abs(scale - 1) > 1e-9, let cur { sb += "\(cur.name) \(PdfNum.f(size)) Tf " }
         if abs(rise - baseRise) > 0.001 { sb += "\(PdfNum.f(baseRise)) Ts " }
         if actual { sb += "EMC " }
     }
