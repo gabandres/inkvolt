@@ -486,9 +486,9 @@ struct ParagraphEditTests {
     }
 
     @Test func clickingBetweenTheLinesOfABlockedParagraphFindsNothing() throws {
-        // A bigger word on its third line: it is edited line by line.
+        // A bigger word on its third line, set a little above the line: it is edited line by line.
         let word = String(Self.wrap(Self.body, Self.width)[2].split(separator: " ")[1])
-        let pdf = Self.withFace(word, "FA", size: 14)
+        let pdf = Self.withFace(word, "FA", size: 14, rise: 1.5)
         let content = try ContentEditor.read(pdf, nil, 0)
         let p = try #require(content.paragraphs.first { $0.text.contains(word) })
         #expect(p.lines.count > 1)

@@ -2,7 +2,8 @@ import Foundation
 
 /// How a stretch of a paragraph looks where it differs from the paragraph's own (roadmap 2.1, part c; the Windows app's
 /// `TextLook`): an installed font family ("Georgia"), its size on the page (points), its color (0xRRGGBB), bold, italic,
-/// a subscript or superscript. Nil keeps the paragraph's own.
+/// a subscript or superscript, and a script's own rise (ems of the paragraph's text, up positive: a script the page set
+/// at its own height; nil: the usual one). Nil keeps the paragraph's own.
 public struct TextLook: Sendable, Hashable {
     public var font: String?
     public var size: Double?
@@ -101,8 +102,9 @@ extension ContentEditor {
     /// A look resolved for writing: its size against the paragraph's (`scale`), its color (nil: the paragraph's), the
     /// installed font it is drawn in (nil: a page font), the look as asked (for the tag), the page's own font it is drawn
     /// in when the paragraph has that face (a bold word's font; nil: the paragraph's own), and how far its baseline sits
-    /// above the line's (a superscript) or below (negative), in ems of the paragraph's text. Compared by identity, as
-    /// stretches of one look are.
+    /// above the line's (a superscript) or below (negative), in ems of the paragraph's text; `fill`: the page's own fill
+    /// operators for `color` when its text has that color (nil: written as RGB). Compared by identity, as stretches of
+    /// one look are.
     final class PartLook {
         let scale: Double
         let color: Int?
@@ -110,9 +112,10 @@ extension ContentEditor {
         let asked: TextLook
         let page: TextRun?
         let rise: Double
+        let fill: String?
 
-        init(_ scale: Double, _ color: Int?, _ face: StandInFont?, _ asked: TextLook, _ page: TextRun?, _ rise: Double) {
-            (self.scale, self.color, self.face, self.asked, self.page, self.rise) = (scale, color, face, asked, page, rise)
+        init(_ scale: Double, _ color: Int?, _ face: StandInFont?, _ asked: TextLook, _ page: TextRun?, _ rise: Double, fill: String? = nil) {
+            (self.scale, self.color, self.face, self.asked, self.page, self.rise, self.fill) = (scale, color, face, asked, page, rise, fill)
         }
     }
 
@@ -142,15 +145,19 @@ extension ContentEditor {
     /// (where `at` says each run starts), its size and color as drawn, its font, bold and italic as its tag says; a run
     /// in another face of the paragraph's family (a bold word as the page's generator drew it) as bold or italic; a run in
     /// another family as that family (with bold or italic where its face differs); a subscript or superscript as its tag
-    /// says, at the size of the look it is in; spans of one look next to each other or a space apart merged.
-    static func spansOf(_ lead: TextRun, _ text: [UInt16], _ at: [(run: TextRun, start: Int, length: Int)]) -> [TextSpan] {
+    /// says, at the size of the look it is in; a run of the paragraph's own face in another size or color (a bigger or red
+    /// word as the page drew it) as that size and color, a smaller one set off its line as the script `scripts` says (by
+    /// run key); spans
+    /// of one look next to each other or a space apart merged.
+    static func spansOf(_ lead: TextRun, _ text: [UInt16], _ at: [(run: TextRun, start: Int, length: Int)],
+                        _ scripts: [Int: (script: TextScript, size: Double, rise: Double)] = [:]) -> [TextSpan] {
         var spans: [TextSpan] = []
         for (r, start, length) in at where length > 0 {
             let drawn: Double = r.tag?.script != nil ? r.fontSize / scriptScale : r.fontSize
             let differs = abs(drawn - lead.fontSize) > max(0.3, 0.05 * lead.fontSize)
             let size: Double? = differs ? (drawn * 10).rounded() / 10 : nil
             let color: Int? = r.color != lead.color ? r.color : nil
-            let look: TextLook
+            var look: TextLook
             if let tag = r.tag {
                 look = TextLook(font: tag.font, size: size, color: color, bold: tag.bold, italic: tag.italic, script: tag.script, rise: tag.rise)
             } else if !r.standIn && r.font != nil && !sameFamily(r, lead) {
@@ -158,8 +165,15 @@ extension ContentEditor {
                                 italic: r.italic != lead.italic ? r.italic : nil)
             } else if !r.standIn && r.font !== lead.font && (r.bold != lead.bold || r.italic != lead.italic) {
                 look = TextLook(size: size, color: color, bold: r.bold != lead.bold ? r.bold : nil, italic: r.italic != lead.italic ? r.italic : nil)
+            } else if size != nil || color != nil {
+                look = TextLook(size: size, color: color)
             } else {
                 continue
+            }
+            if r.tag == nil, let s = scripts[r.key] {
+                look.size = s.size
+                look.script = s.script
+                look.rise = s.rise
             }
             if look.isPlain { continue }
             if let last = spans.last, last.look == look, joinsAcrossSpace(last.end, start, { text[$0] }) {

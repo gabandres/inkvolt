@@ -7,14 +7,19 @@ import Testing
 /// ZapfDingbats is measured with macOS's own font, where Windows reads Adobe's AFM (`ZapfDingbats`).
 extension ParagraphEditTests {
     /// Body as a left-aligned paragraph in /FA with `word` drawn in `face` ("FB": Arial Bold, "FT": Times, "FA" itself) at
-    /// `size` (default the paragraph's), a line under it.
-    static func withFace(_ word: String, _ face: String, size: Double = size, standard: String? = nil) -> [UInt8] {
+    /// `size` (default the paragraph's), raised by `rise` (Ts), in the fill operator `fill` (nil: the paragraph's black), a
+    /// line under it.
+    static func withFace(_ word: String, _ face: String, size: Double = size, standard: String? = nil, rise: Double = 0,
+                         fill: String? = nil) -> [UInt8] {
         let lines = wrap(body, width)
         var sb = "BT /FA \(n(Self.size)) Tf \(n(step)) TL \(n(left)) \(n(top)) Td"
+        let (raise, lower) = rise == 0 ? ("", "") : (" \(n(rise)) Ts", " 0 Ts")
+        let (paint, back) = fill.map { (" \($0)", " 0 g") } ?? ("", "")
         for (i, line) in lines.enumerated() {
             if i > 0 { sb += " T*" }
             if let r = line.range(of: word) {
-                sb += " (\(line[..<r.lowerBound])) Tj /\(face) \(n(size)) Tf (\(word)) Tj /FA \(n(Self.size)) Tf (\(line[r.upperBound...])) Tj"
+                sb += " (\(line[..<r.lowerBound])) Tj /\(face) \(n(size)) Tf\(raise)\(paint) (\(word)) Tj\(lower)\(back) /FA \(n(Self.size)) Tf"
+                sb += " (\(line[r.upperBound...])) Tj"
             } else {
                 sb += " (\(line)) Tj"
             }
@@ -132,12 +137,97 @@ extension ParagraphEditTests {
         #expect(q.runs.first { trimmed($0.text) == word }.map { FontNames.family($0.fontName) } == "Times New Roman")
     }
 
-    @Test func anotherSizeOnALineStillEditsLineByLine() throws {
-        // Two sizes on one baseline: the paragraph's lines group, but rewrapped the bigger word couldn't keep its place.
+    @Test func aBiggerWordInTheParagraphsOwnFontIsAStretchOfItsSize() throws {
+        let pdf = Self.withFace("boxing", "FA", size: 14)
+        let p = try Self.body0(pdf)
+        #expect(p.blocked == nil)
+        #expect(p.text == Self.body)
+        #expect(Self.equal(Self.size, p.fontSize, 2)) // its own size, not the bigger word's
+        #expect(Self.equal(Self.step, p.lineStep, 0), "\(p.lineStep)") // the line with the bigger word read as the paragraph's own step
+        _ = Self.sameSpans([Self.span(Self.body, "boxing", TextLook(size: 14))], p.spans)
+        let next = try Self.run(try ContentEditor.read(pdf, nil, 0), "Next block starts here")
+
+        // Rewritten with words in front, the word moves along at its size; the rest stays at the paragraph's.
+        let text = "Now then " + Self.body
+        let edited = try ContentEditor.replaceParagraph(pdf, nil, p, text)
+        let q = try Self.body0(edited, "Now then")
+        #expect(q.blocked == nil)
+        #expect(q.text == text)
+        _ = Self.sameSpans([Self.span(text, "boxing", TextLook(size: 14))], q.spans)
+        let word = try #require(q.runs.first { trimmed($0.text) == "boxing" })
+        #expect(q.runs.filter { trimmed($0.text) == "boxing" }.count == 1)
+        #expect(Self.equal(14, word.fontSize, 1))
+        #expect(q.runs.filter { trimmed($0.text) != "boxing" }.allSatisfy { Self.equal(Self.size, $0.fontSize, 1) })
+        #expect(word.fontName == p.lead.fontName)
+        for i in 1..<q.lines.count { #expect(q.lines[i].y >= q.lines[i - 1].bottom - 1, "line \(i)") }
+        #expect(Self.words(ContentEditPdf.text(edited).replacingOccurrences(of: "Next block starts here", with: "")).contains(Self.words(text)))
+        let next2 = try Self.run(try ContentEditor.read(edited, nil, 0), "Next block starts here")
+        #expect(Self.equal(next.box.y, next2.box.y, 2))
+        #expect(Self.equal(Self.size, next2.fontSize, 2))
+    }
+
+    @Test func aWordInAnotherFamilyAndSizeKeepsBoth() throws {
         let pdf = Self.withFace("sphinx", "FT", size: 14)
+        let times = try Self.run(try ContentEditor.read(pdf, nil, 0), "sphinx")
+        let p = try Self.body0(pdf)
+        #expect(p.blocked == nil)
+        _ = Self.sameSpans([Self.span(Self.body, "sphinx", TextLook(font: "Times New Roman", size: 14))], p.spans)
+        let text = Self.body + " " + Self.twenty
+        let edited = try ContentEditor.replaceParagraph(pdf, nil, p, text, allowOverlap: true)
+        let q = try Self.body0(edited)
+        let word = try #require(q.runs.first { trimmed($0.text) == "sphinx" })
+        #expect(q.runs.filter { trimmed($0.text) == "sphinx" }.count == 1)
+        #expect(word.fontName == times.fontName)
+        #expect(Self.equal(14, word.fontSize, 1))
+        _ = Self.sameSpans([Self.span(text, "sphinx", TextLook(font: "Times New Roman", size: 14))], q.spans)
+    }
+
+    @Test func aColoredWordKeepsItsColorAsThePageSetIt() throws {
+        // "quartz" in CMYK red: a stretch of that color, written again with the page's own CMYK operator, not as RGB.
+        let pdf = Self.withFace("quartz", "FA", fill: "0 1 1 0 k")
+        let p = try Self.body0(pdf)
+        #expect(p.blocked == nil)
+        #expect(p.lead.color == 0)
+        let red = try Self.run(try ContentEditor.read(pdf, nil, 0), "quartz").color
+        #expect(red != 0)
+        _ = Self.sameSpans([Self.span(Self.body, "quartz", TextLook(color: red))], p.spans)
+        // Letters typed onto the word take its color; words in front move it along.
+        let text = "Now then " + Self.body.replacingOccurrences(of: "quartz", with: "quartzite")
+        let edited = try ContentEditor.replaceParagraph(pdf, nil, p, text)
+        let content = ContentEditPdf.content(edited)
+        #expect(content.contains("0 1 1 0 k"))
+        #expect(!content.contains(" rg "))
+        let q = try Self.body0(edited, "Now then")
+        _ = Self.sameSpans([Self.span(text, "quartzite", TextLook(color: red))], q.spans)
+        #expect(q.runs.filter { trimmed($0.text) != "quartzite" }.allSatisfy { $0.color == 0 })
+        #expect(try Self.run(try ContentEditor.read(edited, nil, 0), "Next block starts here").color == 0)
+    }
+
+    @Test func aSmallerWordSetBelowTheLineIsASubscript() throws {
+        let pdf = Self.withFace("quartz", "FA", size: 7, rise: -2)
+        let p = try Self.body0(pdf)
+        #expect(p.blocked == nil)
+        try #require(p.spans.count == 1, "\(p.spans)")
+        let span = p.spans[0]
+        let u = Array(Self.body.utf16)
+        #expect(String(decoding: u[span.start..<span.end], as: UTF16.self) == "quartz")
+        #expect(span.look.script == .sub)
+        #expect(Self.equal(-2.0 / Self.size, span.look.rise ?? 0, 2), "\(String(describing: span.look.rise))")
+        let text = "Now then " + Self.body
+        let edited = try ContentEditor.replaceParagraph(pdf, nil, p, text)
+        let q = try Self.body0(edited, "Now then")
+        let sub = try #require(q.runs.first { trimmed($0.text) == "quartz" })
+        #expect(Self.equal(7, sub.fontSize, 0), "\(sub.fontSize)")
+        let line = try #require(q.runs.first { abs($0.box.centerY - sub.box.centerY) < Self.size && $0.id != sub.id })
+        #expect(Self.equal(line.origin.y + 2, sub.origin.y, 0), "\(line.origin.y) \(sub.origin.y)") // still 2 points below its line
+        #expect(q.spans.count == 1 && q.spans.first?.look.script == .sub)
+    }
+
+    @Test func aBiggerWordSetOffItsLineStillEditsLineByLine() throws {
+        let pdf = Self.withFace("sphinx", "FT", size: 14, rise: 1.5)
         let p = try #require(try ContentEditor.read(pdf, nil, 0).paragraphs.first { $0.text.contains("sphinx") })
         #expect(p.lines.count > 1)
-        #expect(p.blocked?.contains("mixes fonts") == true)
+        #expect(p.blocked?.contains("off its line") == true, "\(p.blocked ?? "nil")")
         #expect(Self.editError { try ContentEditor.replaceParagraph(pdf, nil, p, "anything") } != nil)
     }
 
