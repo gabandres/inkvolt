@@ -5,11 +5,15 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+
+## 1.20.0
 - View › Customize Command Bar… (or right-click the bar) lets you choose which buttons the command bar shows and in what order, and add Share. What you take off stays in the bar's "…" menu.
 - Review › Reply to Comment… (Ctrl+Shift+R, or right-click a comment in the Comments pane) adds your reply under a comment, as Acrobat shows replies.
 - File › Share… hands the PDF to Windows' share sheet (mail, Nearby Sharing, Teams and other apps). With changes not saved, it asks whether to save first or to share a copy with them.
 - View › Next Comment and Previous Comment (Ctrl+] and Ctrl+[) go from one comment to the next and show it on its page.
 - Edit › Forms › Reset Form… puts every field of a form back to its default value, in one step you can undo.
+- Adding a picture while you edit a paragraph accepts JPEG files; it used to say a JPEG wasn't a picture.
+- A PDF, picture or e-book made to stall or crash a PDF app (a damaged font, an absurd picture size, a book that unpacks to gigabytes) is refused or read only in part, and Share, Reset Form and Fill from CSV say what went wrong instead of doing nothing or freezing the window.
 
 ## 1.19.1
 - When a Windows update leaves a printer's driver broken (Windows then can't print to it from any app), printing says so before the print dialog opens, explains how to fix the printer, and offers to print the document with Inkvolt Print, which sends it straight to a network printer.

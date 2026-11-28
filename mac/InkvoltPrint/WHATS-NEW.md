@@ -6,6 +6,8 @@ collects what's done since the last release. Short lines, in the user's words. `
 for line, for the es-MX listing (`listing.json`'s `localizations`): an English line needs its Spanish there (`PdfStringsTests`).
 
 ## Next
+
+## 1.5.0
 - Scan in black and white: the Color choice offers Black and white when the scanner does, and saves those pages in black and white for a much smaller PDF.
 - Print a PDF straight to the printer: a network printer macOS has no printer set up for, that prints without a driver (IPP Everywhere, AirPrint or Mopria), gets the pages from Inkvolt Print itself. Choose copies, paper, both sides and color; a small window follows the job until it's printed, with Cancel.
 - Scan from the printer's button: on an HP printer that offers Scan to Computer, turn it on in the Scan tab and this Mac appears on the printer's panel; choose it there and press Scan, and your chosen scan preset runs here while Inkvolt Print or its menu bar icon is running. A USB scanner's button does the same when macOS sends its presses to Inkvolt Print; a printer with neither says so.
@@ -17,6 +19,10 @@ for line, for the es-MX listing (`listing.json`'s `localizations`): an English l
 - Help › Inkvolt Print Help (⌘?): the keyboard shortcuts, and what to do when a printer isn't found.
 - Each printer's alerts come in a notification of their own, with Open Printer and Pause Alerts.
 - Printers and scanners that need their driver: a USB printer or scanner macOS can't use yet is listed under your printers as Plugged in, needs its driver, with what to do. Get the driver finds the maker's own driver for it and this Mac on Epson's, Canon's, HP's, Brother's or PFU's website and opens its download in your browser; Inkvolt Print says when the printer or scanner is ready.
+- Everything prints straight to the printer when it should: Copy, Print Photos, Batch Print, a scan preset's print step and Print a PDF's layouts go to a network printer that prints without a driver when macOS has no printer set up for it, when you choose Print straight to the printer in the Print menu, or when macOS stopped its printer because its driver failed (a printer you paused keeps its jobs). Its job list and alerts come from the printer itself, and `print --printer` does the same from Terminal.
+- Share a scanner on the network: other computers and phones on your network can scan from a scanner connected to this Mac. Sharing stays on only on the network you turned it on in; on any other network (a café's Wi-Fi, say) it pauses until you turn it on there.
+- Scanning with a USB scanner, or one macOS lists under Printers & Scanners, returns its pages again (a scan could end with none), and a scan that ends without a page says so.
+- A scan preset another app asks Inkvolt Print to run now asks you first; presets you start yourself run at once.
 
 ## 1.4.0
 - Both sides on a feeder that scans one side: turn on Both sides: turn the stack over (or the scan preset's option), scan the fronts, turn the stack over when asked, and the backs go in page order. Backs in the Other Order is one click for a scanner whose tray reverses the stack, and Undo puts them back.

@@ -5,6 +5,8 @@ Inkvolt PDF). Los mismos encabezados en el mismo orden y una línea por cada lí
 WHATS-NEW.md necesita aquí su español (`PdfStringsTests` comprueba que los encabezados y el número de líneas coincidan).
 
 ## Next
+
+## 1.14.0
 - Archivo › Escanear ofrece Blanco y negro cuando tu escáner lo ofrece, y guarda esas páginas en blanco y negro para un PDF mucho más pequeño.
 - Abre documentos XPS y OpenXPS, libros electrónicos EPUB, cómics (CBZ), archivos FictionBook (FB2) e imágenes: cada uno se abre como un PDF nuevo con sus páginas, con texto que puedes buscar y copiar, para guardarlo donde quieras.
 - Ayuda › Métodos abreviados de teclado (⌘/) muestra todos los métodos abreviados, con un cuadro para encontrar uno. Inkvolt PDF ahora guarda un registro en este Mac (Ayuda › Abrir la carpeta de registros), y Informar un problema… incluye sus últimas líneas.
@@ -38,6 +40,7 @@ WHATS-NEW.md necesita aquí su español (`PdfStringsTests` comprueba que los enc
 - Hacer el texto editable (menú Herramientas, y Escanear y OCR en la barra) convierte el texto reconocido de una página escaneada en texto de verdad, con la fuente instalada más parecida a la del escaneo (también en cursiva, negrita o color), a su tamaño y en su sitio, para que puedas editar sus párrafos con Editar texto e imágenes. El escaneo se tapa detrás del texto con el color del propio papel, o queda a la vista si lo prefieres. Deshacer devuelve la página como estaba.
 - Páginas en dos idiomas: elige un segundo idioma en Reconocer texto. Cada línea se lee en el idioma que le corresponde.
 - Una palabra de la que el reconocimiento de texto no estaba seguro aparece entre las palabras dudosas para revisar.
+- Un PDF, una imagen o un libro electrónico hechos para trabar o cerrar una app de PDF (una fuente dañada, un tamaño de imagen absurdo, un libro que se descomprime en gigabytes) se rechazan o se leen solo en parte, y una página que solo se pudo leer en parte lo dice.
 
 ## 1.13.0
 - Un PDF abierto con su contraseña mostraba las páginas en blanco (su texto se podía buscar y copiar). Ahora sus páginas se ven.

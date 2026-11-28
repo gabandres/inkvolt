@@ -5,6 +5,8 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+
+## 1.11.0
 - Add a printer keeps the zone of a link-local IPv6 address you type (fe80::…%12, or %2512 in a URL), so it asks the printer on that network connection, and says when the zone isn't one.
 
 ## 1.10.1

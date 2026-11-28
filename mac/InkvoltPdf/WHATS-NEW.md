@@ -6,6 +6,8 @@ collects what's done since the last release and is never shown. Short lines, in 
 their Spanish, line for line, shown when the app runs in Spanish: an English line needs its Spanish there (`PdfStringsTests`).
 
 ## Next
+
+## 1.14.0
 - File › Scan offers Black and white when your scanner does, and saves those pages in black and white for a much smaller PDF.
 - Open XPS and OpenXPS documents, EPUB e-books, comic books (CBZ), FictionBook (FB2) files and pictures: each opens as a new PDF of its pages, text you can search and copy, to save where you like.
 - Help › Keyboard Shortcuts (⌘/) lists every shortcut, with a box to find one. Inkvolt PDF now keeps a log on this Mac (Help › Open Log Folder), and Report a Problem… includes its last lines.
@@ -39,6 +41,7 @@ their Spanish, line for line, shown when the app runs in Spanish: an English lin
 - Make Text Editable (Tools menu, and Scan & OCR on the bar) turns a scanned page's recognized text into real text, in the installed font closest to the scan's (italic, bold and coloured text too) and at its size and place, so you can edit its paragraphs with Edit Text & Images. The scan is covered behind the text in the paper's own colour, or left showing if you prefer. Undo puts the page back.
 - Pages in two languages: choose a second language in Recognize Text. Each line is read in the language that fits it.
 - A word text recognition wasn't sure of is listed among the suspect words to check.
+- A PDF, picture or e-book made to stall or crash a PDF app (a damaged font, an absurd picture size, a book that unpacks to gigabytes) is refused or read only in part, and a page that could be read only in part is said to be.
 
 ## 1.13.0
 - A PDF opened with its password showed blank white pages (its text could still be searched and copied). Its pages now show.
