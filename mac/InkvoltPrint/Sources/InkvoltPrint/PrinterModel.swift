@@ -101,6 +101,7 @@ final class PrinterModel: Identifiable {
         history = nil
         systemScanner = s
         view = .scannerReady
+        useButtonDriver()
     }
 
     /// A queue printer: known only by its CUPS queue.
@@ -171,7 +172,104 @@ final class PrinterModel: Identifiable {
     }
 
     /// A queue printer's (or a scanner of its own's) USB scanner, through ImageCaptureCore.
-    var systemScanner: SystemScanner?
+    var systemScanner: SystemScanner? {
+        didSet { if systemScanner != oldValue { useButtonDriver() } }
+    }
+
+    // MARK: Scan from the printer's button (roadmap 2.2)
+
+    @ObservationIgnored private var madeButton: ScanButton?
+    /// The connection the scan button was last handed (a new one is handed over; the same one isn't).
+    @ObservationIgnored private var buttonConnection: PrinterConnection?
+    /// Bumped each time the scan button's line changes, so the Scan tab draws it again.
+    private(set) var buttonRevision = 0
+
+    /// Its scan button (the Windows app's `PrinterViewModel.ScanButton`): HP's Scan to Computer on its panel, or its USB
+    /// scanner's button; off until turned on. Made when first asked for, with the choice kept in the state file.
+    var scanButton: ScanButton {
+        if let madeButton { return madeButton }
+        let store = app.store, id = self.id, name = self.name
+        let button = ScanButton(panelName: app.panelName, choice: store.scanButton(id), save: { store.setScanButton(id, $0) },
+                                pressed: { [weak self] in Task { @MainActor in self?.buttonPressed() } },
+                                log: { NSLog("[%@] %@", name, $0) })
+        button.changed = { [weak self] in Task { @MainActor in self?.buttonRevision += 1 } }
+        madeButton = button
+        return button
+    }
+
+    /// The preset a press of the printer's button runs: the one chosen, or the first while none is (or it was deleted).
+    var buttonPreset: ScanPreset? {
+        let chosen = scanButton.choice.presetId.flatMap { id in app.presets.first { $0.id == id } }
+        return chosen ?? app.presets.first
+    }
+
+    /// The printer's button was pressed for this Mac: the printer comes up on its Scan tab (the window back from the menu
+    /// bar too), and the preset runs as its one-click scan does.
+    private func buttonPressed() {
+        guard let preset = buttonPreset else {
+            NSLog("[%@] The printer's button was pressed, but there's no scan preset to run.", name)
+            return
+        }
+        app.selectedID = id
+        app.paneRequest = .scan
+        MainWindow.bringForward()
+        let scan = self.scan
+        Task { await scan.scan(with: preset) }
+    }
+
+    /// The scan button looks for HP's Scan to Computer on each new connection as itself (reads only; it adds this Mac only
+    /// when turned on), and gets none while another device answers at the address (nothing may reach it).
+    private func followButton(_ v: PrinterView) {
+        guard let monitor else { return }
+        if v.phase == .elsewhere {
+            guard buttonConnection != nil else { return }
+            buttonConnection = nil
+            printerCopier = nil
+            let button = scanButton
+            Task { await button.usePrinter(nil) }
+            return
+        }
+        guard v.isOnline else { return }
+        Task { [weak self] in
+            guard let conn = await monitor.connection(), let self, conn !== self.buttonConnection, !self.stopped else { return }
+            self.buttonConnection = conn
+            // A password kept for this printer goes along with the POST (over HTTPS only), as its settings' writes do.
+            if !conn.http.hasCredentials, let password = PrinterPasswords.password(for: self.id) { conn.http.setCredentials(user: "admin", password: password) }
+            await self.scanButton.usePrinter(conn)
+            // The printer's own copier (roadmap 3.3), looked for on the same connection by reading only.
+            let copier = await PrinterCopier.detect(conn)
+            if conn === self.buttonConnection { self.printerCopier = copier }
+        }
+    }
+
+    /// The printer copies by itself (HP LEDM, roadmap 3.3): Copy on the Printer… in its Print menu. Nil: it doesn't offer it
+    /// in the names Inkvolt Print knows, or isn't connected as itself.
+    private(set) var printerCopier: PrinterCopier?
+
+    /// The admin password the Scan tab asked for when the printer wanted it to add this Mac: kept in the Keychain (as the
+    /// Settings tab's), sent with the next POST over HTTPS, and the button turned off and on to try again.
+    func useButtonPassword(_ password: String) async {
+        guard let conn = buttonConnection else { return }
+        conn.http.setCredentials(user: "admin", password: password)
+        PrinterPasswords.set(password, for: id)
+        await scanButton.setOn(false)
+        await scanButton.setOn(true)
+    }
+
+    /// The scan button hears this printer's USB scanner's buttons (none: no USB scanner).
+    private func useButtonDriver() {
+        let usb = systemScanner.flatMap { $0.usb ? $0 : nil }
+        let system = app.scannerButtons
+        let button = scanButton
+        Task { await button.useDriver(usb == nil ? nil : system, deviceId: usb?.id, buttons: usb.flatMap { system.buttons(for: $0.id) }) }
+    }
+
+    /// Removed from the list: its button closes at once (so its choice never comes back), then this Mac comes off its panel.
+    func closeButton() -> Task<Void, Never>? {
+        guard let button = madeButton else { return nil }
+        button.seal()
+        return Task { await button.close() }
+    }
 
     /// The Scan tab's pages and settings, made when the tab first shows (and kept while the app runs).
     @ObservationIgnored private var scanModel: ScanModel?
@@ -405,6 +503,7 @@ final class PrinterModel: Identifiable {
         case .changed(let v):
             if v.isOnline { lastReading = Date() }
             view = v
+            followButton(v)
             if let m = v.model { model = m }
         case .observed(let snapshot):
             app.observe(snapshot)

@@ -108,6 +108,36 @@ extension LedmClient {
         if response.status == 401 || response.status == 403 { throw LedmAuthRequiredError(credentialsWereSent: http.hasCredentials) }
         try DeviceHttp.ensureSuccess(response, "PUT", url)
     }
+
+    /// PUT that must never arrive twice (one that starts a copy): over HTTPS, on a connection of its own and never resent
+    /// (`DeviceHttp.sendOnce`; Windows' `PutPathAsync(once: true)`). Throws as `put(path:_:)`.
+    public func putOnce(path: String, _ body: String) async throws {
+        let url = try http.https(path)
+        let response = try await http.sendOnce(HttpRequest("PUT", url, headers: ["Content-Type": "text/xml; charset=utf-8"], body: Array(body.utf8),
+                                                           timeout: Self.writeTimeout))
+        if response.status == 401 || response.status == 403 { throw LedmAuthRequiredError(credentialsWereSent: http.hasCredentials) }
+        try DeviceHttp.ensureSuccess(response, "PUT", url)
+    }
+
+    /// POST an LEDM document that makes something on the printer (a Scan to Computer destination), over HTTPS, sent once and
+    /// never resent (`DeviceHttp.sendOnce`: a second one would make a second). Returns the reply's `Location` as given (nil
+    /// when it has none). Throws `LedmAuthRequiredError` on 401/403 and `DeviceHttpError` on any other refusal.
+    public func post(path: String, _ body: String) async throws -> String? {
+        let url = try http.https(path)
+        let response = try await http.sendOnce(HttpRequest("POST", url, headers: ["Content-Type": "text/xml; charset=utf-8"], body: Array(body.utf8),
+                                                           timeout: Self.writeTimeout))
+        if response.status == 401 || response.status == 403 { throw LedmAuthRequiredError(credentialsWereSent: http.hasCredentials) }
+        try DeviceHttp.ensureSuccess(response, "POST", url)
+        return response.header("Location")
+    }
+
+    /// DELETE an LEDM resource over HTTPS; a 404 counts as done (nothing left to remove). Refusals throw as `post`.
+    public func delete(path: String) async throws {
+        let url = try http.https(path)
+        let response = try await http.send(HttpRequest("DELETE", url, timeout: .seconds(10)))
+        if response.status == 401 || response.status == 403 { throw LedmAuthRequiredError(credentialsWereSent: http.hasCredentials) }
+        if response.status != 404 { try DeviceHttp.ensureSuccess(response, "DELETE", url) }
+    }
 }
 
 /// The printer doesn't list the resource a write needs.

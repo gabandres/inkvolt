@@ -1332,6 +1332,16 @@
         }
       }
     },
+    "Asking the printer to copy…": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pidiendo a la impresora que copie…"
+          }
+        }
+      }
+    },
     "Asks the printer shown for everything Inkvolt Print reads from it, read only, and saves the replies with what identifies it taken out": {
       "localizations": {
         "es": {
@@ -2114,6 +2124,26 @@
         }
       }
     },
+    "Copy on the Printer": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copiar en la impresora"
+          }
+        }
+      }
+    },
+    "Copy on the Printer…": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copiar en la impresora…"
+          }
+        }
+      }
+    },
     "Could not save the list: %@": {
       "localizations": {
         "es": {
@@ -2460,6 +2490,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Escribir contraseña…"
+          }
+        }
+      }
+    },
+    "Enter the Admin Password…": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escribir la contraseña de administrador…"
           }
         }
       }
@@ -5124,6 +5164,16 @@
         }
       }
     },
+    "Put the pages face up in the printer's document feeder, or one page face down on its glass, then press Copy. The printer copies by itself.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pon las páginas boca arriba en el alimentador de documentos de la impresora, o una página boca abajo en su cristal, y presiona Copiar. La impresora copia por sí sola."
+          }
+        }
+      }
+    },
     "Puts the second half below, to the left of, above or to the right of the first": {
       "localizations": {
         "es": {
@@ -5480,6 +5530,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Filas"
+          }
+        }
+      }
+    },
+    "Runs": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ejecuta"
+          }
+        }
+      }
+    },
+    "Scan from the printer's button": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escanear desde el botón de la impresora"
           }
         }
       }
@@ -6358,6 +6428,16 @@
         }
       }
     },
+    "Something went wrong while asking the printer to copy, and it may already be copying. Check its control panel before copying again.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Algo falló al pedir a la impresora que copie, y puede que ya esté copiando. Revisa su panel de control antes de volver a copiar."
+          }
+        }
+      }
+    },
     "Source": {
       "localizations": {
         "es": {
@@ -6996,6 +7076,16 @@
         }
       }
     },
+    "The printer copies with the copies, two-sided and other settings on its own control panel.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La impresora copia con el número de copias, la doble cara y la demás configuración de su propio panel de control."
+          }
+        }
+      }
+    },
     "The printer didn't answer over SNMPv3: check that it's on and that SNMPv3 is turned on in it.": {
       "localizations": {
         "es": {
@@ -7042,6 +7132,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "La impresora no aceptó la solicitud."
+          }
+        }
+      }
+    },
+    "The printer is copying, with the settings on its control panel.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La impresora está copiando, con la configuración de su panel de control."
           }
         }
       }
@@ -7138,6 +7238,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "El escaneo no terminó: el escáner dejó de responder."
+          }
+        }
+      }
+    },
+    "The scan preset a press of the printer's button runs": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El ajuste de escaneo que se ejecuta al pulsar el botón de la impresora"
           }
         }
       }
@@ -8066,6 +8176,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ancho"
+          }
+        }
+      }
+    },
+    "With its control panel's settings; no macOS queue needed": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Con la configuración de su panel de control; no necesita la cola de macOS"
           }
         }
       }

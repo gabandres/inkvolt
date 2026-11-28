@@ -206,6 +206,13 @@ on both. Only the tests drew codes that way; the app never renders Core Image in
     https://developer.apple.com/documentation/imagecapturecore/icdevicelocationtypemask
   - An unanswered forum thread (macOS 15.1.1) reports USB scanners not detected with `browsedDeviceTypeMask = .scanner`
     alone. The missing location bits are a likely cause. UNVERIFIED. https://developer.apple.com/forums/thread/771629
+- A scanner's button (roadmap 2.2; read in the macOS 27.2 SDK's headers on the build Mac, 2026-11-27): `ICDeviceBrowser.h`
+  declares `deviceBrowser:requestsSelectDevice:`, "sent when a button is pressed on a device and the current application
+  is the target for that button press"; with a session open on the device it says the press goes to the device
+  delegate's `device:didReceiveButtonPress:` instead, but no header declares that method any more. `ICScannerDevice.h`
+  declares the button names (`ICButtonTypeScan`, `…Mail`, `…Copy`, `…Web`, `…Print`, `…Transfer`) and nothing that lists a
+  scanner's buttons. So Inkvolt Print hears a press through the browser only, without knowing which button. UNVERIFIED (no
+  scanner with buttons on the build Mac): that macOS makes this app a scanner's target, and how a person sets it.
 - UNVERIFIED: whether ICC's Bonjour scanner browsing, which runs out of process, counts against the app's Local Network
   privilege. TN3179 exempts only the high-level services it lists (AirPlay, printing via UIKit, DeviceDiscoveryUI,
   AccessorySetupKit), and ICC isn't among them.

@@ -98,7 +98,7 @@ mac/InkvoltPrintKit --build-system native`.
 | P9 | Offline diagnosis | OfflineFixerTests (diagnosis parts) | Done (the test file's header lists what was adapted) |
 | P10 | The app: main window, Add a printer, scan review, offline fixer, menu bar, settings, demo mode, then the rest of the Windows 1.0 feature table (batch scans, glass photos and their boxes by hand, the ID card copy, Set Up in macOS, Print Photos' queue papers, borderless, paper type, quality and color) | DemoTests, BatchScanTests, GlassPhotoTests and the table's others | Done. Not checked by a person: anything on paper (separator sheet, ID card, Print Photos borderless), the Photos sheet's dragging and keys, a feeder (batches and two-sided separator backs were checked in demo mode only), a real USB scanner |
 | P11 | App Store: record, privacy label "Data Not Collected", review notes (demo mode, why `network.server`, the subnet search), screenshots (`--snapshot`) | | Done (live since 1.0). Listing, review notes and What's New go through `asc-listing.mjs` (README). Entitlements: sandbox, network client and server, `print`, `files.user-selected.read-write`, `files.bookmarks.app-scope`, `device.usb`, the app group; the preflight and the review notes say why each |
-| P12 | The roadmap's items after 1.0 (`print/ROADMAP.md`): PrintCore halves on the PC, PrintMac and the app on the Mac | ProTests and each item's below | Done: 1.1, 1.2, 1.3, 1.5, 1.6, 2.1, 2.3, 2.4, 2.6, 3.2, 3.4, 3.6, 3.7 (3.5 Open in Inkvolt PDF came with Inkvolt PDF for Mac). Left: 2.2, 3.1, 3.3, which need a real printer or scanner |
+| P12 | The roadmap's items after 1.0 (`print/ROADMAP.md`): PrintCore halves on the PC, PrintMac and the app on the Mac | ProTests and each item's below | Done: 1.1, 1.2, 1.3, 1.5, 1.6, 2.1, 2.2, 2.3, 2.4, 2.6, 3.2, 3.3, 3.4, 3.6, 3.7 (3.5 Open in Inkvolt PDF came with Inkvolt PDF for Mac). Left: 3.1, which needs a real scanner; 2.2's and 3.3's hardware checks (below) |
 
 ### P12: what differs and what's left, per item
 
@@ -319,6 +319,61 @@ mac/InkvoltPrintKit --build-system native`.
   real printer (the M234dw printed DirectPrinter's page; its PCLm and Apple raster weren't tried), the options dialog, the progress window, the
   Print menu's choice and the card's note on screen and with VoiceOver, Cancel mid-job on a real printer, a long document's
   memory, a real queue stopped by a failed filter giving way to the printer.
+- **2.2 Scan from the printer's button (2026-11-27).** PrintCore has Windows' HP half and its decision, tests first:
+  `Ledm/LedmWalkupScan` (the walk-up names are Windows' assumption, ported as they are in one table, `LedmWalkupScan.names`:
+  no HP all-in-one that lists the interface has been recorded, and the M234dw's tree, read again on 2026-11-27 with GETs
+  only, lists none), `Ledm/ScanToComputer` (found by reading only: the tree's walk-up `SupportedIfc`, its manifest, the
+  list; turned on, this Mac is added with one POST over HTTPS, sent once (`LedmClient.post`), kept while the app or its
+  menu bar item runs, added again after a `PowerUpEvent` or a lost connection; a press heard through the EventTable long
+  poll already used, each once by `AgingStamp` (`SeenEvents`), only this Mac's destination and only `ScanRequested`;
+  removed with one DELETE (`LedmClient.delete`) when turned off, on quit and when the printer is removed, only a path below
+  the list; a computer by this Mac's name the app didn't add is left alone; this app's destination known by a marker in its
+  host name, so a lost POST answer is found and removed), `Ledm/LedmEventFeed` (one EventTable long poll per connection,
+  shared by the status and the panel: `LedmClient.events`, which `watchEvents` now goes through; a recovered poll reads the
+  table at once, Windows' fix), `Presets/ScanButton` (the panel before the driver's button, off by default, sealed first
+  when its printer is removed so its choice never comes back), `Net/FakeScanToComputer` (the demo's and the tests' panel),
+  and Record a printer saves the walk-up manifest and what it lists. The driver half is a seam in PrintCore
+  (`Scan/ScannerButtons`: `ScannerButtons`, `FakeScannerButtons`, `ScannerButtonNames`, `WorkClaim`) and PrintMac's
+  `IcaScannerButtons` over `SystemScanners`' ImageCaptureCore browser. The app: the Scan tab's "Scan from the printer's
+  button" section (`ScanButtonSection`: the line, the switch, Runs with the preset), the choice kept in the state file
+  (`PrintState.scanButtons`), each new connection as itself handed over (`PrinterModel.followButton`, none while another
+  device answers), a press bringing the window up (from the menu bar too), selecting the printer and running the preset on
+  its Scan tab as its one-click scan does (`PrinterModel.buttonPressed`); quitting waits up to 3 s for this Mac to come off
+  the printers' panels (`AppModel.closeScanButtons`, `applicationShouldTerminate`'s `.terminateLater`). Demo: the HP
+  laser's made-up panel (`Demo.panel`), the USB laser's scanner has a Scan button (`Demo.scannerButtons`); `--report …
+  --demo --scan-button [press]`. Tests: ScanButtonTests (Windows' 33, same names). **Mac differences:** ImageCaptureCore
+  doesn't list a scanner's buttons nor say which was pressed: the macOS 27.2 SDK's headers declare `ICButtonTypeScan`,
+  `…Copy`, `…Mail`, `…Web`, `…Print` and `…Transfer` but only `deviceBrowser(_:requestsSelect:)` to tell a press (the
+  device delegate's `didReceiveButtonPress` its comment names is gone), so every USB scanner is offered a Scan button
+  (`IcaScannerButtons.buttons(for:)`) and every press counts as Scan; macOS sends a press to the browser only when this app
+  is that scanner's target and no session is open on it, and the Scan tab keeps the session it opens to scan, so after a
+  scan from the tab the scanner's button isn't heard until it's reconnected (Windows' WIA hears both); the printer that wants
+  its admin password to add this Mac asks for it in the section (Enter the Admin Password…), where Windows points to Printer
+  settings; this Mac's name on the panel is its computer name (Sharing's, `SCDynamicStoreCopyComputerName`); the strings
+  say "this Mac" and "its menu bar icon"; the hostile-list test parses 500 destinations, not 5,000 (on the Mac a list is
+  always parsed from a reply, bounded by `DeviceHttp.maxReplyBytes`). Not checked: an HP printer that lists Scan to
+  Computer (none recorded; the walk-up names may be wrong, and then nothing is offered or written), a USB scanner with a
+  button on the build Mac (whether macOS sends its presses to Inkvolt Print, and which setting makes it the target), the
+  section on screen and with VoiceOver, quitting while a printer doesn't answer.
+- **3.3 The printer's own copier (2026-11-27).** PrintCore: `Ledm/LedmCopy` (the start's element names and values,
+  `startNames` CopyState / StartCopy and `startValues` start / startCopy, are Windows' assumption, ported as they are; only a
+  `readWrite` entry with an explicit start command counts; the whole `elementXPath` followed), `Ledm/PrinterCopier` (two
+  GETs to find it, then the Dyn read again and one PUT of the start alone over HTTPS, sent once: `LedmClient.putOnce`;
+  refusals, busy and no answer in words, never resent), `Printing/CopyRoute` (Windows' rules). Record a printer saves both
+  copy documents. The app: the Print menu's Copy on the Printer… when the printer offers a start (`PrinterModel.printerCopier`,
+  looked for on each connection as itself), a sheet saying where the pages go and that the printer's own panel settings
+  apply, Copy, the outcome, and the admin password asked in the sheet when the printer wants it (`PrinterCopySheet`).
+  `--report … --demo --copy-printer`. Tests: PrinterCopyTests (Windows' 18, same names). **What the M234dw says**
+  (2026-11-27, GETs only): its tree lists CopyConfigCap and CopyConfigDyn and both answer (the recorded fixtures have
+  neither), but every Cap entry is a walk-up default (DefaultLighterDarker, DefaultMediaSizeName, DefaultMediaType,
+  DefaultNumberOfCopies, DefaultOptimize, DefaultReduceEnlargeCustom, all `readWrite`) and the Dyn holds only those: no
+  start, so the M234dw offers no copy started by an app (`LedmCopy.read` is nil: nothing offered, nothing sent).
+  **Mac differences:** the Mac has no Copy tab, so the printer's own copier is a sheet of its own in the Print menu, and
+  Windows' page copy through the PC (copies, collate, 2-up and 4-up, the preview) isn't on the Mac (the ID card copy is):
+  the refusals say to copy from the printer's control panel instead of choosing Through this PC, and `CopyRoute.controls`
+  and `blocker` are Windows' rules no Mac screen uses yet; the PUT starts with an XML declaration and declares only the
+  namespaces it uses (Windows also declares the Dyn root's `dd`). Not checked: a printer whose Cap offers a start, a real
+  copy, the sheet on screen and with VoiceOver.
 - **3.7 Spanish interface.** Every sentence PrintCore and PrintMac show goes through `loc` (`Suite/CoreLanguage`,
   `CoreStrings.xcstrings`, Windows' Spanish word for word where it exists), installed by the app only when it runs in
   Spanish: the command lines and Inkvolt PDF's use of PrintCore stay English; a test gives its own table to its own task
@@ -2529,21 +2584,20 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
 - Microsoft Office as E12's converter: off until a person with Microsoft 365 signed in runs its checklist (above).
 - Inkvolt Print's printer-data work of 2026-11-20: all on the Mac (the web server on a port of its own since
   2026-11-23); SNMP for WSD queues has no Mac counterpart (macOS has no WSD queues).
-- Inkvolt Print: P12's 2.2, 3.1 and 3.3 not started on the Mac (2.1 done 2026-11-27; separator codes, the last code item besides these,
-  on the Mac since 2026-11-23: "Inkvolt Print scope"). What fixtures could prove and what needs a device, as of
-  2026-11-23:
-  - 2.2 Scan from the printer's button. The HP half (`LedmWalkupScan`, `ScanToComputer`, the demo's
-    `FakeScanToComputer`; `ScanButtonTests`, 33 tests, about 1,100 lines of .NET with a preset's Scan button setting and a
-    background long poll in the app) can be ported from the demo manifest's documents alone, but every walk-up name in it
-    is Windows' assumption (`LedmWalkupScan.Names`): no HP all-in-one that lists the interface has been recorded (the
-    M234dw's tree lists none), so a port would prove only that it matches an assumption. The ICA half (a scanner's button
-    events through ImageCaptureCore, Windows' WIA events) needs a USB scanner with buttons on the build Mac.
+- Inkvolt Print: P12's 3.1 not started on the Mac (2.1 done 2026-11-27; 2.2 and 3.3 ported 2026-11-27: P12 above; separator codes, the last code item besides these,
+  on the Mac since 2026-11-23: "Inkvolt Print scope"). What needs a device:
+  - 2.2 Scan from the printer's button. Every walk-up name is Windows' assumption (`LedmWalkupScan.names`): no HP
+    all-in-one that lists the interface has been recorded (the M234dw's tree lists none, read again 2026-11-27), so the
+    port proves only that it matches Windows and the assumption; one recording settles the names. The ImageCaptureCore half
+    needs a USB scanner with a button on the build Mac: whether macOS sends its presses to Inkvolt Print at all, with which
+    setting, and with the Scan tab's session open.
   - 2.1 Print straight to the printer: done (P12 above; the M234dw printed a page straight from the build Mac). Left: the
     app's own prints on a real printer, and a queue stopped by a failed filter giving way to it; on screen, the options dialog, the progress
     window and the Print menu's choice.
   - 3.1 Share a scanner on the network: an ICA scanner served over eSCL; needs a USB scanner and a second device to scan
     from.
-  - 3.3 The printer's own copier: LEDM's copy start names (`LedmCopy.StartNames`) are an assumption until a recording
-    confirms them, as on Windows.
+  - 3.3 The printer's own copier: LEDM's copy start names (`LedmCopy.startNames`) are Windows' assumption until a
+    recording of a printer that offers a start confirms them; the M234dw's copy documents answer but hold only walk-up
+    defaults, no start (2026-11-27), so it isn't offered there.
 - Speed: the drawing set's first 20 pages and Find miss their targets, as on Windows (`mac/tools/bench/RESULTS.md`).
 - Everything listed under "What a person must look at" and each section's "A person must look at" / "Not checked".

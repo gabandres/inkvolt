@@ -1,8 +1,10 @@
 import Foundation
+import Synchronization
 
 /// Demo mode's made-up network (the Windows app's `Demo`): printers that answer from the scrubbed test fixtures and never
 /// reach the network, so the app can be tried (and reviewed) without a printer.
-/// - The HP laser at `FixtureTransport.demoHost`: LEDM and eSCL (`m234dw`, with `hp-demo`'s additions).
+/// - The HP laser at `FixtureTransport.demoHost`: LEDM and eSCL (`m234dw`, with `hp-demo`'s additions: its hand-written copy
+///   and Scan to Computer documents, and `panel`'s made-up list of computers).
 /// - An inkjet that isn't HP's, at `inkjetHost`: IPP and eSCL (`inkjet-demo`), its feeder sending PDF only (`feederPdfOnly`).
 /// - An office laser remembered at `officeOldHost`, where nothing answers; it answers at `officeNewHost` (the offline fixer's
 ///   case).
@@ -40,8 +42,10 @@ public enum Demo {
             }
             feeder = { scanSetup.feederPages.map { scanPage($0, 2550, 3300) } }
         }
+        let panel = FakeScanToComputer(FixtureTransport(document: laser, scanArea: area, feederBatch: feeder))
+        madePanel.withLock { if $0 == nil { $0 = panel } } // the app's, made first; a Fleet read's network has its own
         let http = HostRouter([
-            FixtureTransport.demoHost: FixtureTransport(document: laser, scanArea: area, feederBatch: feeder),
+            FixtureTransport.demoHost: panel,
             inkjetHost: FixtureTransport(document: { name in
                 guard let bytes = read("inkjet-demo", name) else { return nil }
                 return name.hasSuffix("ScannerCapabilities.xml") ? feederPdfOnly(bytes) : bytes
@@ -70,6 +74,19 @@ public enum Demo {
         ])
         return (http, snmp)
     }
+
+    private static let madePanel = Mutex<FakeScanToComputer?>(nil)
+
+    /// The HP laser's panel (Scan to Computer, roadmap 2.2): the made-up list this Mac goes on, one for the whole run so it
+    /// outlives each connection, in front of the laser's documents (the first `network`'s). `--report … --scan-button press`
+    /// presses it.
+    public static var panel: FakeScanToComputer? { madePanel.withLock { $0 } }
+
+    /// The made-up USB scanners' buttons (roadmap 2.2): the USB laser's scanner has a Scan button, the photo flatbed none.
+    public static let scannerButtons = FakeScannerButtons([
+        FakeScannerButtons.Scanner(id: laserScanner.id, buttons: ["scan"]),
+        FakeScannerButtons.Scanner(id: flatbed.id, buttons: nil),
+    ])
 
     /// The capabilities with JPEG taken out of the named "feeder" profile (the part before the glass's): the demo inkjet's
     /// feeder sends PDF only (roadmap 1.3: some feeders offer nothing else), so the review shows the pictures taken out of each

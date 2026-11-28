@@ -93,16 +93,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         MainActor.assumeIsolated {
             let waiting = AppModel.shared.printers.reduce(0) { $0 + $1.unsavedPages }
-            guard waiting > 0 else { return .terminateNow }
-            let alert = NSAlert()
-            alert.messageText = waiting == 1 ? String(localized: "Quit with \(waiting) scanned page not saved?")
-                : String(localized: "Quit with \(waiting) scanned pages not saved?")
-            alert.informativeText = String(localized: "They'll be offered again the next time Inkvolt Print opens.")
-            alert.addButton(withTitle: String(localized: "Quit"))
-            alert.addButton(withTitle: String(localized: "Cancel"))
-            guard alert.runModal() == .alertFirstButtonReturn else { return .terminateCancel }
-            AppModel.shared.scanStore?.keepForNextStart()
-            return .terminateNow
+            if waiting > 0 {
+                let alert = NSAlert()
+                alert.messageText = waiting == 1 ? String(localized: "Quit with \(waiting) scanned page not saved?")
+                    : String(localized: "Quit with \(waiting) scanned pages not saved?")
+                alert.informativeText = String(localized: "They'll be offered again the next time Inkvolt Print opens.")
+                alert.addButton(withTitle: String(localized: "Quit"))
+                alert.addButton(withTitle: String(localized: "Cancel"))
+                guard alert.runModal() == .alertFirstButtonReturn else { return .terminateCancel }
+                AppModel.shared.scanStore?.keepForNextStart()
+            }
+            // Scan from the printer's button (roadmap 2.2): this Mac comes off the printers' panels first, within 3 s.
+            guard AppModel.shared.printers.contains(where: { $0.scanButton.on }) else { return .terminateNow }
+            Task { @MainActor in
+                await AppModel.shared.closeScanButtons()
+                NSApp.reply(toApplicationShouldTerminate: true)
+            }
+            return .terminateLater
         }
     }
 

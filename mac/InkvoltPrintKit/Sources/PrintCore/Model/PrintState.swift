@@ -79,6 +79,9 @@ public struct PrintState: Equatable, Sendable, Codable {
     /// The printers the person set to print straight to the printer over their macOS queue (roadmap 2.1, `PrintRouting`; the
     /// Windows app's `AppState.DirectPrinters`), by id.
     public var directPrinters: [String] = []
+    /// Printer id → its scan button (roadmap 2.2; the Windows app's `AppState.ScanButtons`): on or off, the preset a press
+    /// runs, this Mac's place on the printer's panel.
+    public var scanButtons: [String: ScanButtonChoice] = [:]
 
     public static let maxBatchPlaces = 200
 
@@ -105,6 +108,7 @@ public struct PrintState: Equatable, Sendable, Codable {
         recentScans = RecentScans.clean((try? c.decodeIfPresent([RecentScan?].self, forKey: .recentScans)) ?? [])
         // A hand edit may leave anything there: only the ids that are text count.
         directPrinters = ((try? c.decodeIfPresent([TextOnly].self, forKey: .directPrinters)) ?? []).compactMap(\.text)
+        scanButtons = (try? c.decodeIfPresent([String: ScanButtonChoice].self, forKey: .scanButtons)) ?? [:]
     }
 }
 
@@ -190,6 +194,7 @@ public final class StateStore: Sendable {
         change { s in
             s.printers.removeAll { same($0.uuid, id) }
             for key in s.firmware.keys where same(key, id) { s.firmware[key] = nil }
+            for key in s.scanButtons.keys where same(key, id) { s.scanButtons[key] = nil }
             if !s.forgottenUuids.contains(where: { same($0, id) }) { s.forgottenUuids.append(id) }
             s.directPrinters.removeAll { same($0, id) }
             if s.selectedUuid.map({ same($0, id) }) == true { s.selectedUuid = nil }
@@ -247,8 +252,22 @@ public final class StateStore: Sendable {
                 s.directPrinters.removeAll { same($0, oldId) || same($0, newId) }
                 s.directPrinters.append(newId)
             }
+            if let key = s.scanButtons.keys.first(where: { same($0, oldId) }), let button = s.scanButtons.removeValue(forKey: key),
+               !s.scanButtons.keys.contains(where: { same($0, newId) }) {
+                s.scanButtons[newId] = button
+            }
             if s.selectedUuid.map({ same($0, oldId) }) == true { s.selectedUuid = newId }
         }
+    }
+
+    // MARK: Scan button
+
+    /// The printer's scan button as last chosen (nil: never turned on or changed).
+    public func scanButton(_ id: String) -> ScanButtonChoice? { read { s in s.scanButtons.first { same($0.key, id) }?.value } }
+
+    /// Keeps the choice and saves (when it changed).
+    public func setScanButton(_ id: String, _ choice: ScanButtonChoice) {
+        change { s in s.scanButtons[s.scanButtons.keys.first { same($0, id) } ?? id] = choice }
     }
 
     // MARK: Firmware

@@ -7,6 +7,8 @@ línea en inglés: cada línea que se agregue a WHATS-NEW.md necesita aquí su e
 
 ## Next
 - Imprimir un PDF directamente en la impresora: una impresora de red que macOS no tiene configurada y que imprime sin controlador (IPP Everywhere, AirPrint o Mopria) recibe las páginas del propio Inkvolt Print. Elige las copias, el papel, la doble cara y el color; una ventana pequeña sigue el trabajo hasta que se imprime, con Cancelar.
+- Escanear desde el botón de la impresora: en una impresora HP que ofrece Escanear a computadora, actívalo en la pestaña Escanear y este Mac aparece en el panel de la impresora; elígelo allí y pulsa Escanear, y el ajuste de escaneo que elegiste se ejecuta aquí mientras Inkvolt Print o su icono en la barra de menús esté abierto. El botón de un escáner USB hace lo mismo cuando macOS le envía sus pulsaciones a Inkvolt Print; una impresora sin ninguno de los dos lo dice.
+- Copia con la propia impresora: una impresora HP que acepta pedidos de copia copia por su cuenta cuando pulsas Copiar en Copiar en la impresora… del menú Imprimir, con la configuración de su panel de control, y no necesita una cola de macOS.
 
 ## 1.4.0
 - Ambas caras en un alimentador que escanea una cara: activa Ambas caras: dar la vuelta a la pila (o la opción del ajuste de escaneo), escanea los anversos, da la vuelta a la pila cuando se te pida y los reversos quedan en orden de página. Reversos en el otro orden está a un clic para un escáner cuya bandeja invierte la pila, y Deshacer los deja como estaban.

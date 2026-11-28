@@ -109,7 +109,7 @@ final class ScanModel {
     /// The files of a batch a preset save wrote before it failed part-way: saving again writes only the rest.
     @ObservationIgnored private var savedParts = SavedParts<String>()
     @ObservationIgnored private var scanning: Task<Void, Never>?
-    @ObservationIgnored private unowned let printer: PrinterModel
+    @ObservationIgnored unowned let printer: PrinterModel
     @ObservationIgnored private let app: AppModel
 
     /// The printer this tab scans on (Recent Scans' Print prints there).

@@ -44,6 +44,8 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   `shared/InkvoltPrint.Core/Presets`): **Scan to Computer** on an HP panel, where this PC is a **destination** on the printer's
   list, added by this app and taken off again (`ScanToComputer`, `LedmWalkupScan`), or the **driver's button**, the
   scan-button events a Windows scanner's driver raises (`WiaScannerInfo.Buttons`). A **press** counts once, for this PC only.
+  On the Mac the same `ScanButton` (PrintCore `Presets`), the driver's button being ImageCaptureCore's press through
+  `ScannerButtons` (PrintMac's `IcaScannerButtons`), which names no button, so every press is Scan.
 - **Scanner sharing** (roadmap 3.1, Inkvolt Pro): one of this PC's Windows scanners offered to other devices as an eSCL
   scanner, the **shared scanner** (`ScannerShare` in `shared/InkvoltPrint.Core/Sharing`: the switch, when it may listen, the
   certificate and the announcement; `SharedScanner`: the eSCL documents and **jobs** a device starts, one scanning at a time,

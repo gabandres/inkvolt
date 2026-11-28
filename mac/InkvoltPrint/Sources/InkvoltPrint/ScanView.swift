@@ -107,6 +107,7 @@ private struct ScanSettings: View {
     var body: some View {
         Form {
             PresetStrip(scan: scan)
+            ScanButtonSection(printer: scan.printer)
             if let error = scan.loadError {
                 Text(error).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 Button("Try Again") { Task { await scan.load() } }

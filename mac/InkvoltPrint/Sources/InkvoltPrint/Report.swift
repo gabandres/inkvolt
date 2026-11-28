@@ -15,7 +15,10 @@ import PrintMac
 /// which reads and saves nothing real, the CSV in memory and the Pro gate switched on without a key); every printer's supplies list their history line and chart; `--hardware` runs the new flows on the selected real printer (glass scan with photos, ID card sides, a feeder
 /// batch, Set Up in macOS with the queue deleted again; nothing printed or written to the printer); `--papers` lists the paper sizes Print Photos offers for each printer, with its paper types, qualities and colors;
 /// `--photo-job` sends Print Photos' job (one sheet, the queue's photo choices) to each printer's macOS queue held, reads
-/// back what cupsd took and cancels it (nothing prints); `--idcard` copies an ID card (both sides from its glass) without printing; `--fix [all]` runs the
+/// back what cupsd took and cancels it (nothing prints); `--idcard` copies an ID card (both sides from its glass) without printing;
+/// with `--demo`, `--scan-button [press]` turns the demo HP laser's and USB laser's scan buttons on, presses them with `press`
+/// and turns them off (`scanButtonCheck`, roadmap 2.2); `--copy-printer` asks the demo HP laser to copy by itself, as Copy on
+/// the Printer… does (`copyPrinterCheck`, roadmap 3.3: the made-up printer takes the PUT and forgets it); `--fix [all]` runs the
 /// offline fixer on the office laser (and its repairs); `--setup-probe` asks cupsd to create a queue (a test one, deleted at
 /// at once: `CupsSetupProbe`); with `--demo`, `--setup` sets up a demo printer that has no queue; every report ends with the
 /// Inkvolt Pro line, and `--pro-window`, `--pro-key <key>`, `--pro-remove <key>` check Help › Inkvolt Pro… (`proCheck`);
@@ -111,6 +114,10 @@ enum Report {
             if args.contains("--photo-projects") { cancelled += await photoProjectsCheck(model) }
             if model.isDemo && args.contains("--photos") { cancelled += await photosCheck(model) }
             if model.isDemo && args.contains("--idcard") { cancelled += await idCardCheck(model) }
+            if model.isDemo && args.contains("--copy-printer") { cancelled += await copyPrinterCheck(model) }
+            if model.isDemo, let at = args.firstIndex(of: "--scan-button") {
+                cancelled += await scanButtonCheck(model, press: at + 1 < args.count && args[at + 1] == "press")
+            }
             if model.isDemo && args.contains("--firmware") { cancelled += await firmwareCheck(model) }
             if model.isDemo && args.contains("--web-port") { cancelled += await webPortCheck(model) }
             if model.isDemo && args.contains("--direct-print") { cancelled += await directPrintCheck(model) }
@@ -732,7 +739,7 @@ enum Report {
         for _ in 0..<150 where scan.isScanning || scan.pages.pages.contains(where: { !$0.analysed }) { try? await Task.sleep(for: .milliseconds(200)) }
     }
 
-    private static func files(in folder: URL) -> String {
+    static func files(in folder: URL) -> String {
         ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).sorted().joined(separator: ", ")
     }
 

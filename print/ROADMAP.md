@@ -102,9 +102,11 @@ What each is: the README's feature table. What waits for real hardware: the READ
   build Mac (PWG raster). Open on the Mac: the app's own prints on a real printer.
 - **2.2 Scan from the printer's button.** Done on Windows: HP's Scan to Computer over LEDM, and a Windows scanner's
   button events through WIA; off by default. Every walk-up name is an assumption (`LedmWalkupScan.Names`) until an HP
-  all-in-one that lists the interface is recorded (the M234dw doesn't). **Mac half waits** (ICA's button events; the HP
-  part a port of `LedmWalkupScan` and `ScanToComputer`; what fixtures can prove and what needs a device:
-  `mac/docs/PLAN.md`, "Open").
+  all-in-one that lists the interface is recorded (the M234dw doesn't, read again 2026-11-27). **Mac** (2026-11-27): the
+  same HP part (Windows' tests and walk-up names ported), the scan tab's section, the long poll shared with the status, and
+  a USB scanner's button through ImageCaptureCore, which lists no buttons and names none pressed, so every USB scanner is
+  offered a Scan button. Open on the Mac: a scanner with a button on the build Mac (whether macOS sends its presses to
+  Inkvolt Print), and the HP printer as on Windows (`mac/docs/PLAN.md` P12 2.2).
 - **2.3 Scan cleanup and a Unicode OCR layer.** Done, Windows and Mac. Word error rates:
   [RESULTS-cleanup.md](../pdf/tools/ocr-corpus/RESULTS-cleanup.md) (`ocr-corpus cleanup`). Known limits: a white sheet
   under a white lid shows no edge and stays whole; a dark lid isn't cropped; pdf.js (and PDFKit) find each word of a
@@ -141,7 +143,11 @@ What each is: the README's feature table. What waits for real hardware: the READ
 - **3.3 The printer's own copier, copy extras.** Done on Windows. The copier writes only the start, because
   `CopyConfigDyn` holds the panel's walk-up defaults and nothing captured shows when a copy has finished to put them back;
   the start's names (`LedmCopy.StartNames`, `StartValues`) are an assumption until a recording confirms them, so *Through
-  this PC* stays the default. **Mac half waits** (PrintCore's copy, the LEDM request and the layout).
+  this PC* stays the default. The M234dw (read 2026-11-27, GETs only) answers both copy documents, but they hold only the
+  panel's walk-up defaults (copies, size, type, lighter/darker, optimize, reduce/enlarge) and no start, so it offers no
+  copy started from an app. **Mac** (2026-11-27): the printer's own copier (Windows' `LedmCopy`, `PrinterCopier` and their
+  tests ported), Copy on the Printer… in the Print menu; the Mac has no page copy through the computer yet (2.1's Copy), so
+  the copy extras (2-up, 4-up, collate, the preview) are Windows only (`mac/docs/PLAN.md` P12 3.3).
 - **3.4 Job notifications.** Done, Windows (the spooler, and the printer's own job list when it prints straight) and Mac
   (IPP Get-Jobs over cupsd's socket). Decisions: stuck is told once per episode, again only after real progress, at most
   3 times per job; failed once per job; a resubmitted job (same id, another submit time) is new; only your first job is
