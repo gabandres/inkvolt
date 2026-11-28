@@ -2541,6 +2541,16 @@ under their names (3.2's links in the exports were already ported, 803da39c). Ma
   it blacked, as Windows' object does) and the app's Apply hands its result to `applied` before `verify`; the page's
   paper color, of equal counts, is the one sampled first (as .NET's dictionary orders it). Rounding is .NET's (to even).
   For a person to look at: a redacted line on screen and printed (the words' shading where they moved, under a pixel).
+- **3.1, Translate's looks and right-to-left lines: not ported yet** (the audit's run of 2026-11-27 stopped at the four
+  above). The Mac's Translate is Windows' of 2026-11-10; what it lacks is Windows' eeb4f0f4 and bfc86ffc (a regular word
+  in a bold paragraph, another color or class of font as `<span>`, scripts at the page's size and rise, the review's ten
+  fixes), 692487d7 (plain underlines, `ContentEditor.TranslateUnderlines`, `<u>`), b5f6fe02 (looks in right-to-left
+  text: `TextShaper.Shape` with a `GlyphStyle` per look), cb5c8bf8 (two or three other looks: `<span>`, `<font>`,
+  `<mark>`), 0d1de0c2 (scripts longer than 12 characters), c284dd12 and db89d996 (the real model's fixes;
+  `RightToLeftFont`), 04c9901f, 1dcf3497, 48424333 and e3238825 (right-to-left lines written in stretches,
+  `GlyphOrder.Stretches`, `JoinLeftToRight`; the pdf.js reading test). About 3,300 lines of Windows changes with their
+  tests (`TranslationLooksTests`, `TranslationTests`, `TranslationPdfJsTests`): one port of its own, in that order (the
+  styled shaping first, as the right-to-left stretches build on it).
 
 ## Open decisions
 
@@ -2573,5 +2583,7 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
     from.
   - 3.3 The printer's own copier: LEDM's copy start names (`LedmCopy.StartNames`) are an assumption until a recording
     confirms them, as on Windows.
+- Inkvolt PDF: Translate's looks and right-to-left lines of 2026-11-19 and 20 (roadmap 3.1), Windows' 12 commits listed under
+  "Windows' additions of 2026-11-19 and 20".
 - Speed: the drawing set's first 20 pages and Find miss their targets, as on Windows (`mac/tools/bench/RESULTS.md`).
 - Everything listed under "What a person must look at" and each section's "A person must look at" / "Not checked".

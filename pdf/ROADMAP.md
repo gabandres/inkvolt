@@ -249,7 +249,8 @@ through a real socket to a stand-in, `TranslationCorpusTests` and `TranslationPd
   identifier changed ("SP 800-63A" as "DE 800-63A"), words of another script slipped in (asked again, then flagged).
 - **Not checked:** another model or a cloud endpoint; a model's refusal or an answer to the text instead of its
   translation can't be told from a translation; a screen reader or Acrobat on a copy; long runs over sleep and Wi-Fi drops.
-- **Mac:** done (2026-11-10) as Windows was then; the looks and right-to-left work of 2026-11-19 and 11-20 isn't ported.
+- **Mac:** done (2026-11-10) as Windows was then; the looks and right-to-left work of 2026-11-19 and 11-20 isn't ported
+  (its Windows commits, in order: `mac/docs/PLAN.md`, "Windows' additions of 2026-11-19 and 20").
   Differences: `mac/docs/PLAN.md`, "Translate side by side". Not checked on the Mac: a real model.
 
 ### 3.2 Export to PowerPoint and HTML
