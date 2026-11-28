@@ -371,4 +371,20 @@ public class NetworkSearchTests
         Assert.Null(PrinterAddress.ReadUrl("http://[fe80::1%25a%2Fb]/"));
         Assert.Equal("http://192.0.2.10:631/ipp/print", PrinterAddress.UrlText(new Uri("http://192.0.2.10:631/ipp/print")));
     }
+
+    /// <summary>
+    /// Only the URL's own host gets its zone written (the pre-release review): the same bracketed address in the path, query,
+    /// fragment or user name is the printer's text, left as it is.
+    /// </summary>
+    [Theory]
+    [InlineData("http://[fe80::1%2512]:631/p/[fe80::1]/x", "http://[fe80::1%2512]:631/p/[fe80::1]/x")]
+    [InlineData("http://[fe80::1%2512]/x?h=[fe80::1]#[fe80::1]", "http://[fe80::1%2512]/x?h=[fe80::1]#[fe80::1]")]
+    [InlineData("http://u:p@[fe80::1%25en0]:8080/ipp/print", "http://u:p@[fe80::1%25en0]:8080/ipp/print")]
+    [InlineData("ipp://[fe80::1%25en0]/[fe80::1]", "ipp://[fe80::1%25en0]/[fe80::1]")]
+    public void Only_the_hosts_zone_is_written(string kept, string text)
+    {
+        var url = PrinterAddress.ReadUrl(kept)!;
+        Assert.Equal(text, PrinterAddress.UrlText(url));
+        Assert.Equal(url.IdnHost, PrinterAddress.ReadUrl(PrinterAddress.UrlText(url))!.IdnHost);
+    }
 }

@@ -97,10 +97,19 @@ public sealed record PrinterAddress(string? Host, Uri? Ipp, string? Error)
         return zone is null || !IsIpv6(address) ? null : $"{address}%{zone}";
     }
 
-    /// <summary>A URL as text, an IPv6 zone written "%25" (<c>http://[fe80::1%25en0]:631/ipp/print</c>): what is kept or shown.</summary>
-    public static string UrlText(Uri url) =>
-        url.IdnHost.Contains('%') && HostOf(url) is { } zoned && UrlHost(zoned) is { } written
-            ? url.AbsoluteUri.Replace(url.Host, written, StringComparison.Ordinal) : url.AbsoluteUri;
+    /// <summary>
+    /// A URL as text, an IPv6 zone written "%25" (<c>http://[fe80::1%25en0]:631/ipp/print</c>): what is kept or shown. Only the
+    /// authority's host is rewritten: the same bracketed address in the path, query or user name stays as it is.
+    /// </summary>
+    public static string UrlText(Uri url)
+    {
+        var text = url.AbsoluteUri;
+        if (!url.IdnHost.Contains('%') || HostOf(url) is not { } zoned || UrlHost(zoned) is not { } written) return text;
+        // The authority (scheme://user@host:port) ends with the host and its port; the host is its last occurrence there.
+        var authority = url.GetLeftPart(UriPartial.Authority);
+        var at = text.StartsWith(authority, StringComparison.Ordinal) ? authority.LastIndexOf(url.Host, StringComparison.Ordinal) : -1;
+        return at < 0 ? text : string.Concat(text.AsSpan(0, at), written, text.AsSpan(at + url.Host.Length));
+    }
 
     /// <summary>
     /// A URL kept as <see cref="UrlText"/> wrote it, read back with its zone where .NET keeps it; null when it isn't one,
