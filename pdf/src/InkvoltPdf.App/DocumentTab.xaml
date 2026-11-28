@@ -242,6 +242,7 @@
                             <ListBox.ContextMenu>
                                 <ContextMenu>
                                     <MenuItem x:Name="CommentEditMenu" Header="{x:Static loc:Strings.Tab_MenuEditText}" InputGestureText="{x:Static loc:Strings.Tab_KeyEnter}" />
+                                    <MenuItem x:Name="CommentReplyMenu" Header="{x:Static loc:Strings.Tab_MenuReply}" InputGestureText="Ctrl+Shift+R" />
                                     <MenuItem x:Name="CommentColorMenu" Header="{x:Static loc:Strings.Tab_MenuColor}" Visibility="Collapsed" />
                                     <MenuItem x:Name="CommentDeleteMenu" Header="{x:Static loc:Strings.Tab_MenuDelete}" InputGestureText="{x:Static loc:Strings.Tab_KeyDel}" />
                                 </ContextMenu>

@@ -561,6 +561,30 @@
   <data name="Cmd_AddNote" xml:space="preserve">
     <value>Agregar _nota</value>
   </data>
+  <data name="Cmd_ReplyToComment" xml:space="preserve">
+    <value>Responder al co_mentario…</value>
+  </data>
+  <data name="Review_ReplyTitle" xml:space="preserve">
+    <value>Responder al comentario</value>
+  </data>
+  <data name="Review_ReplyTo" xml:space="preserve">
+    <value>Para: {0}</value>
+    <comment>{0} the comment's kind, author and text, shortened</comment>
+  </data>
+  <data name="Review_ReplyNote" xml:space="preserve">
+    <value>Aparece debajo del comentario, en la página {0}; otras apps de PDF también la muestran como respuesta. Autor: {1}.</value>
+    <comment>{0} page label, {1} the author name</comment>
+  </data>
+  <data name="Review_ReplyEmpty" xml:space="preserve">
+    <value>Escribe la respuesta.</value>
+  </data>
+  <data name="Review_ReplyButton" xml:space="preserve">
+    <value>Responder</value>
+    <comment>The reply dialog's button</comment>
+  </data>
+  <data name="Tab_MenuReply" xml:space="preserve">
+    <value>_Responder…</value>
+  </data>
   <data name="Cmd_Redact" xml:space="preserve">
     <value>_Eliminar información confidencial</value>
   </data>

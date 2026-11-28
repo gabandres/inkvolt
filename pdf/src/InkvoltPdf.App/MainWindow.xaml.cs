@@ -2093,6 +2093,7 @@ public partial class MainWindow : Window
         Bind(Cmd.InsertText, t => _ = t.InsertText(), t => t.CanInsertText);
         Bind(Cmd.ReplaceText, t => _ = t.ReplaceSelection(), t => t.CanReplaceText);
         Bind(Cmd.AddNote, t => ToggleTool(t, ViewerTool.AddNote), t => !t.IsOrganizing && t.Session.IsPdf);
+        Bind(Cmd.ReplyToComment, t => { if (t.CommentToReplyTo is { } a) _ = t.ReplyToComment(a); }, t => !t.IsOrganizing && t.Session.IsPdf && t.CommentToReplyTo is not null);
         Bind(Cmd.AddImage, t =>
         {
             if (t.PageView.Tool == ViewerTool.AddImage) t.PageView.Tool = ViewerTool.Hand;

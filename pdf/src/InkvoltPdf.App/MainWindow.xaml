@@ -334,6 +334,7 @@
                                     <MenuItem Command="app:Cmd.InsertText" />
                                     <MenuItem Command="app:Cmd.ReplaceText" />
                                     <MenuItem x:Name="NoteMenu" Command="app:Cmd.AddNote" />
+                                    <MenuItem Command="app:Cmd.ReplyToComment" />
                                     <!-- Pen, highlighter, shapes, lines, text boxes: filled in code (MainWindow.BuildDrawMenu) -->
                                     <MenuItem x:Name="DrawMenu" Header="{x:Static loc:Strings.Main_MenuDraw}" />
                                     <MenuItem Command="app:Cmd.AddImage" InputGestureText="{x:Static loc:Strings.Main_KeyI}" />

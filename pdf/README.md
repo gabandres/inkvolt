@@ -274,7 +274,9 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   shows and prints them; listed in the Comments pane with their author; one undo step each.
 - **Comments** (Review menu): highlight / underline / strike out selected text (Ctrl+Shift+H / U / X, or right-click),
   sticky notes (Ctrl+Shift+C), hover to read; the Comments pane lists them by page with replies, filter, edit and delete
-  (undoable); View › **Next Comment** / **Previous Comment** (Ctrl+] / Ctrl+[, the keys right of P, as the Mac's ⌥⌘] / ⌥⌘[)
+  (undoable); **Reply to Comment…** (Review menu, Ctrl+Shift+R, or the pane's right-click Reply…; the Mac's Reply to
+  Comment… and its inspector's reply field) adds a reply under the comment chosen there, as Acrobat makes them
+  (`Annotations.AddReply`); View › **Next Comment** / **Previous Comment** (Ctrl+] / Ctrl+[, the keys right of P, as the Mac's ⌥⌘] / ⌥⌘[)
   choose the next one in that list, around the ends, and show it on its page (`Annotations.StepComment`). Proofreading marks as Acrobat makes them: **Insert Text…** puts a blue caret where words go in (after the
   selection, where you clicked in the text with Select Text, or right-click › Insert Text Here…), the words as its
   comment; **Replace Text…** crosses out the selected words (one page) with a caret after them holding the new text, the

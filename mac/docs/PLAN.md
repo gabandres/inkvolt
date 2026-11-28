@@ -1571,6 +1571,10 @@ Decided 2026-11-03 in the Mac UX review (`docs/UX-REVIEW.md`, branch `mac-ux`; M
   PdfCore): sidebar, zoom, Highlight, Markup, Fill & Sign, Share, Search, customizable. Windows keeps its one-row command
   bar with every tool. The Mac's tool strip is the markup toolbar, hidden until asked for (⇧⌘A, Preview's key) or until a
   markup tool is picked; its groups drop from the right in a narrow window.
+- The inspector (a popover for the selected comment or link) has no Windows twin: there the Comments pane shows a
+  comment's kind, author, date and replies, Edit Text… and Delete change it, the drawing bar its color, width, opacity
+  and text size, and Edit Link… a link; Reply to Comment… (Ctrl+Shift+R, the pane's Reply…) came later, for the
+  inspector's reply field.
 - Share… shares the file as saved, and beeps for a document never saved. Windows' File › Share… (later) asks first when
   there are changes not saved (Save and Share, or Share a Copy) and shares a never-saved document as a copy
   (`DocumentShare`, DocumentShareTests).
