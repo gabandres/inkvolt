@@ -10,13 +10,20 @@ ProSetup.configure(selfTest: cliArguments.contains("--self-test"))
 if BatchCommandLine.isCommand(cliArguments) {
     exit(Int32(CommandLineRun.run(cliArguments)))
 }
+// `InkvoltPdf --convert-to word <files…>` (Finder's Convert to Word, from a terminal): handed to the copy already running
+// (exit 0), refused when wrong (exit 2), else this launch becomes the app, converts, and quits when done (ConvertLaunch).
+let (launchOptions, convertCommand) = ConvertCommand.splitOptions(cliArguments)
+if !convertCommand.isEmpty {
+    if let code = ConvertLaunch.run(convertCommand) { exit(code) }
+    UserDefaults.standard.register(defaults: ["NSTreatUnknownArgumentsAsOpen": "NO"]) // the files are converted, not opened
+}
 // AppKit opens any argument that names something on disk as a document: the self-test's `--snapshots <folder>` would stop
 // the run behind an error alert nobody can dismiss over SSH.
 if cliArguments.contains("--self-test") || cliArguments.contains("--lang") {
     UserDefaults.standard.register(defaults: ["NSTreatUnknownArgumentsAsOpen": "NO"])
 }
 // The interface's language, before the menu bar and the first window (the command line above stays English).
-AppLanguage.apply(cliArguments)
+AppLanguage.apply(launchOptions)
 // The first document controller made is the one AppKit keeps: ours converts Office files and saved web pages on Open.
 _ = DocumentController()
 let app = NSApplication.shared

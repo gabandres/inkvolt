@@ -26466,6 +26466,182 @@
           }
         }
       }
+    },
+    "Convert with Inkvolt PDF": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Convertir con Inkvolt PDF"
+          }
+        }
+      }
+    },
+    "Converting {0} file": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Convirtiendo {0} archivo"
+          }
+        }
+      }
+    },
+    "Converting {0} files": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Convirtiendo {0} archivos"
+          }
+        }
+      }
+    },
+    "{0} of {1} converted": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} de {1} convertidos"
+          }
+        }
+      }
+    },
+    "Converting…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Convirtiendo…"
+          }
+        }
+      }
+    },
+    "Waiting": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En espera"
+          }
+        }
+      }
+    },
+    "Export failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Error al exportar"
+          }
+        }
+      }
+    },
+    "Couldn't find {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se encontró {0}."
+          }
+        }
+      }
+    },
+    "The file may be damaged or in a format Inkvolt PDF can't read.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Es posible que el archivo esté dañado o en un formato que Inkvolt PDF no puede leer."
+          }
+        }
+      }
+    },
+    "The PDF's folder doesn't accept new files and there is no Documents folder to use instead. Use Change options… to choose where to save it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La carpeta del PDF no acepta archivos nuevos y no hay una carpeta Documentos que usar en su lugar. Usa Cambiar opciones… para elegir dónde guardarlo."
+          }
+        }
+      }
+    },
+    "{0} more file wasn't added: Inkvolt PDF converts up to {1} at a time.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se añadió {0} archivo más: Inkvolt PDF convierte hasta {1} a la vez."
+          }
+        }
+      }
+    },
+    "{0} more files weren't added: Inkvolt PDF converts up to {1} at a time.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se añadieron {0} archivos más: Inkvolt PDF convierte hasta {1} a la vez."
+          }
+        }
+      }
+    },
+    "{0} more file wasn't added: up to {1} files can wait to be converted. Try it again once these are done.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se añadió {0} archivo más: hasta {1} archivos pueden esperar para convertirse. Vuelve a intentarlo cuando terminen estos."
+          }
+        }
+      }
+    },
+    "{0} more files weren't added: up to {1} files can wait to be converted. Try them again once these are done.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se añadieron {0} archivos más: hasta {1} archivos pueden esperar para convertirse. Vuelve a intentarlo cuando terminen estos."
+          }
+        }
+      }
+    },
+    "{0} file name couldn't be used (it holds characters no file name can have, or it names a device), so it was left out.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo usar {0} nombre de archivo (tiene caracteres que ningún nombre de archivo puede tener, o nombra un dispositivo), así que se omitió."
+          }
+        }
+      }
+    },
+    "{0} file names couldn't be used (they hold characters no file name can have, or they name a device), so they were left out.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudieron usar {0} nombres de archivo (tienen caracteres que ningún nombre de archivo puede tener, o nombran un dispositivo), así que se omitieron."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -5,6 +5,7 @@ Inkvolt PDF). Los mismos encabezados en el mismo orden y una línea por cada lí
 WHATS-NEW.md necesita aquí su español (`PdfStringsTests` comprueba que los encabezados y el número de líneas coincidan).
 
 ## Next
+- Haz clic con la tecla Control en un PDF en Finder y elige Servicios › "Convertir a Word con Inkvolt PDF": el archivo de Word se guarda junto a él (sin reemplazar otro archivo), sin abrir el PDF. Selecciona varios PDF para convertirlos todos a la vez. Desde una terminal, `--convert-to word` (o excel, powerpoint, text, html) hace lo mismo.
 - Buscar en carpetas encuentra una frase de palabras comunes leyendo menos: las páginas de un archivo se leen juntas y se reparten entre los procesadores del Mac, y una página de texto simple se revisa rápido. También encuentra una frase que empieza al final de una serie de más de 1.024 letras y dígitos (un código o un hash largo).
 - Exportar a PowerPoint y HTML conserva los vínculos del PDF: los vínculos a páginas web y a correos siguen abriéndose, y un vínculo a otra página lleva a esa diapositiva o a esa parte de la página. Solo quedan vinculadas las palabras que cubre el vínculo. La columna de Redistribuir también tiene los vínculos del PDF.
 - Comparar archivos alinea una página escaneada a otro tamaño o girada un cuarto de vuelta (de lado o boca abajo) con la otra versión antes de mostrar lo que se ve distinto, así que la misma página ya no parece distinta por todas partes.

@@ -29,9 +29,9 @@ iconutil -c icns assets/AppIcon.iconset -o "$app/Contents/Resources/AppIcon.icns
 iconutil -c icns assets/PdfDocument.iconset -o "$app/Contents/Resources/PdfDocument.icns" # CFBundleTypeIconFile
 cp WHATS-NEW.md WHATS-NEW.es.md THIRD-PARTY-NOTICES.md "$app/Contents/Resources/"
 # The interface in English and Spanish (AppLanguage): the String Catalogs compiled into en.lproj and es.lproj (the app's
-# own text, PdfCore's, Inkvolt Print's CoreStrings for what PrintCore shows, Info.plist's), and every key of the three
+# own text, PdfCore's, Inkvolt Print's CoreStrings for what PrintCore shows, Info.plist's, Finder's Services entry as ServicesMenu.strings), and every key of the three
 # sentence catalogs for the self-test's --strings check (catalog-keys.py).
-for catalog in Resources/Localizable.xcstrings Resources/PdfStrings.xcstrings Resources/InfoPlist.xcstrings     ../InkvoltPrint/Resources/CoreStrings.xcstrings; do
+for catalog in Resources/Localizable.xcstrings Resources/PdfStrings.xcstrings Resources/InfoPlist.xcstrings Resources/ServicesMenu.xcstrings     ../InkvoltPrint/Resources/CoreStrings.xcstrings; do
     xcrun xcstringstool compile "$catalog" --output-directory "$app/Contents/Resources"
 done
 /usr/bin/python3 ../InkvoltPrint/catalog-keys.py Resources "$app/Contents/Resources/CatalogKeys.json"     Resources/Localizable.xcstrings Resources/PdfStrings.xcstrings ../InkvoltPrint/Resources/CoreStrings.xcstrings
