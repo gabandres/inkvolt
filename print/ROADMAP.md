@@ -136,7 +136,10 @@ What each is: the README's feature table. What waits for real hardware: the READ
 - **3.1 Share a scanner on the network (eSCL).** Done on Windows (free since 2026-11-22, the owner's decision; Kestrel from ASP.NET Core's shared framework, the
   owner's decision, no NuGet package; TCP 9780, HTTPS only, Private networks only). Open: an iPhone scan app, a Mac's Image
   Capture, sane-airscan or another Inkvolt Print over a real network with a real USB scanner behind it (this PC's LAN is
-  Public). **Mac half waits** (an ICA scanner shared the same way).
+  Public). Done on the Mac (2026-11-27): an ImageCaptureCore scanner (USB, or a network one a maker's driver reaches) shared
+  the same way, on the Scan tab, the eSCL server's logic in PrintCore, Network framework's TLS server and Bonjour in
+  PrintMac, no new entitlement (`mac/docs/PLAN.md`, P12's 3.1). Open on the Mac as on Windows: a real USB scanner and a
+  phone or Mac as the client.
 - **3.2 SNMPv3 and a community per printer.** Done on Windows (a community per printer; SNMPv3 with SHA-256/SHA-1/MD5
   and AES-128/192/256/DES; SNMP access… asks the printer first; a refused login is its own state) and on the Mac (the
   community, SNMPv3 with the same protocols and the refused state as Windows', a refusal the printer's only from its own

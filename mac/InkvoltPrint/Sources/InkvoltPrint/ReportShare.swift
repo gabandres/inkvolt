@@ -9,10 +9,10 @@ import PrintMac
 /// ImageCaptureCore lists whose name holds `name` (USB, or a network one: a check, as Windows' `ShareAsync` takes one the
 /// card wouldn't offer) shared on this Mac's private networks and announced, on a keychain and a choice of the run's own
 /// (nothing kept, the app's own sharing untouched), held `--hold` seconds for a device on the network to scan through it,
-/// then stopped. No device's address in the report.
+/// then stopped; with `--self-scan`, our client on this Mac scans a page from its glass through the share. No device's address in the report.
 extension Report {
-    static func shareScannerCheck(_ model: AppModel, name: String?, hold: Int) async -> [String] {
-        model.isDemo ? await demoShareCheck(model, hold: hold) : await systemShareCheck(name: name, hold: hold)
+    static func shareScannerCheck(_ model: AppModel, name: String?, hold: Int, selfScan: Bool) async -> [String] {
+        model.isDemo ? await demoShareCheck(model, hold: hold) : await systemShareCheck(name: name, hold: hold, selfScan: selfScan)
     }
 
     private static func demoShareCheck(_ model: AppModel, hold: Int) async -> [String] {
@@ -37,7 +37,7 @@ extension Report {
         return lines + model.shareLog.lines.map { "  log: " + $0 }
     }
 
-    private static func systemShareCheck(name: String?, hold: Int) async -> [String] {
+    private static func systemShareCheck(name: String?, hold: Int, selfScan: Bool) async -> [String] {
         let browse = SystemScanners(network: true) { _ in }
         browse.start()
         defer { browse.stop() }
@@ -61,7 +61,7 @@ extension Report {
         let describe: (InputCaps?) -> String = { c in c.map { "\($0.maxWidth)x\($0.maxHeight)/300 in, \($0.resolutions) dpi, \($0.colorModes)" } ?? "-" }
         lines.append("  glass \(describe(caps?.platen)); feeder \(describe(caps?.adf))")
         lines.append("  state \(share.state), served networks \(SharePeers.served(SystemShareNetworks().read()).count): \(share.text(s.id))")
-        if let port = share.port { lines += await clientLines(port: port, scan: false) }
+        if let port = share.port { lines += await clientLines(port: port, scan: selfScan) }
         if hold > 0 { try? await Task.sleep(for: .seconds(hold)) }
         await share.stop()
         await share.close()
