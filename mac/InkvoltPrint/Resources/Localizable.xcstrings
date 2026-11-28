@@ -10042,6 +10042,26 @@
           }
         }
       }
+    },
+    "Scan with \"%@\"?": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Escanear con «%@»?"
+          }
+        }
+      }
+    },
+    "Inkvolt Print was started with this scan preset from outside the app. Put the pages on the glass or in the feeder, then click Scan.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkvolt Print se abrió con este ajuste de escaneo desde fuera de la app. Pon las páginas en el cristal o en el alimentador y haz clic en Escanear."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

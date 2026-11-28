@@ -1054,9 +1054,13 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   macOS has no broken-driver case like Windows'. **Presets:** File › Scan With (⌘1…⌘9 anywhere in the window, Windows'
   Ctrl+1…9; the Scan tab's buttons keep theirs) and the menu bar item's Scan With list the first nine; the Dock menu has
   Scan: <preset> for the first five (Windows' jump list); `--preset <id or name>` runs one at launch, and a second launch
-  with it (`open -n … --args --preset id`) hands it to the copy already running through a distributed notification
-  carrying only the id (a sandboxed app's userInfo isn't delivered; Windows' named pipe), then quits. A preset deleted
-  since runs nothing; with no scanner after 30 s it says so (Windows' words). **Help** (⌘?, Help › Inkvolt Print Help):
+  with it (`open -n … --args --preset id`) hands it to the copy already running, then quits. Windows' named pipe takes only
+  this user's processes; any Mac process, sandboxed ones too, can post a distributed notification, so it carries only a
+  token and the preset waits in a file the second launch leaves in the app's own container (`PresetHandOver`: taken once,
+  within 10 s; a name, a made-up token or an old one runs nothing). **Mac difference:** a preset from outside the app
+  (`--preset`, handed over) asks "Scan with …?" first; Windows' runs at once. The Dock menu, Scan With and the palette
+  run at once (the person's own click). A preset deleted since runs nothing; with no scanner after 30 s it says so
+  (Windows' words). **Help** (⌘?, Help › Inkvolt Print Help):
   the Mac's own shortcuts, Can't find a printer? with Local Network access named and Open Local Network Settings, Add a
   Printer…, Report a Problem…, Inkvolt Pro…; no What's New (the App Store shows it) and no Open Log Folder (the Mac app
   keeps no log). **The command palette** (View › Command Palette…, ⌘K; nothing else in Inkvolt Print uses ⌘K, so not
