@@ -417,23 +417,25 @@ enum ConvertLaunch {
             .contains { $0.processIdentifier != me && $0.bundleURL?.standardizedFileURL.path == bundlePath }
     }
 
-    /// Posts the request and waits up to 3 seconds for the running copy to say it took it.
+    /// Leaves the request for the running copy (`ConvertHandOver`: the notification carries only its token) and waits up to
+    /// 3 seconds for the copy to say it took it.
     @MainActor
     private static func forward(_ request: ConvertCommand.Request) -> Bool {
+        guard let token = ConvertHandOver.standard.leave(ConvertCommand.toArguments(request), now: Date()) else { return false }
         let id = UUID().uuidString
         let center = DistributedNotificationCenter.default()
         final class Flag: @unchecked Sendable { var taken = false }
         let flag = Flag()
         let observer = center.addObserver(forName: answerName, object: id, queue: nil) { _ in flag.taken = true }
         defer { center.removeObserver(observer) }
-        center.postNotificationName(requestName, object: bundlePath,
-                                    userInfo: ["id": id, "arguments": ConvertCommand.toArguments(request)], deliverImmediately: true)
+        center.postNotificationName(requestName, object: bundlePath, userInfo: ["id": id, "token": token], deliverImmediately: true)
         let until = Date().addingTimeInterval(3)
         while !flag.taken && Date() < until { _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05)) }
         return flag.taken
     }
 
-    /// The running copy's side: takes other launches' requests for this bundle and answers each.
+    /// The running copy's side: takes other launches' requests for this bundle (only those a launch left: any process can
+    /// post the notification) and answers each.
     @MainActor
     static func listen() {
         DistributedNotificationCenter.default().addObserver(ConvertLaunchListener.shared, selector: #selector(ConvertLaunchListener.received(_:)),
@@ -442,8 +444,8 @@ enum ConvertLaunch {
 
     @MainActor
     fileprivate static func received(_ note: Notification) {
-        guard let info = note.userInfo, let id = info["id"] as? String, id.count <= 64,
-              let arguments = info["arguments"] as? [String], arguments.count <= ConvertCommand.maxFiles + 1 else { return }
+        guard let info = note.userInfo, let id = info["id"] as? String, id.count <= 64, let token = info["token"] as? String, token.count <= 64,
+              let arguments = ConvertHandOver.standard.take(token, now: Date()) else { return }
         let (request, error) = ConvertCommand.tryParse(arguments, folder: "/")
         guard let request else { return Report.progress("forwarded convert command refused: \(error)") }
         DistributedNotificationCenter.default().postNotificationName(answerName, object: id, userInfo: nil, deliverImmediately: true)

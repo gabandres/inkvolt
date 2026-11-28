@@ -2505,8 +2505,13 @@ Shots for the owner: `docs/design/mac/`.
   - **The command line** (`InkvoltPdf --convert-to word|excel|powerpoint|text|html <files…>`, as Windows): checked
     before the app starts (main.swift, after `--batch`/`--watch`/`--fill`); a wrong one prints Windows' sentence in
     English on standard error and exits 2 (Windows shows it in a dialog, then exits 2). A copy of the same app bundle
-    already running gets the request in a distributed notification (`deliverImmediately`, so a copy in the background
-    gets it; the switch carries the counts left out, as Windows' pipe line does) and answers it, and the launch exits 0;
+    already running gets the request (`deliverImmediately`, so a copy in the background gets it; the switch carries the
+    counts left out, as Windows' pipe line does) and answers it, and the launch exits 0. **Mac difference:** Windows'
+    named pipe takes only this user's processes; any Mac process, sandboxed ones too, can post a distributed
+    notification, so it carries only a token and the command line waits in a file (0600) the launch leaves in
+    `inkvolt-pdf-convert/hand-over` in the user's temporary folder (0700), beside the lock files (`ConvertHandOver` over
+    PrintCore's `HandOverFiles`, which Inkvolt Print's `PresetHandOver` uses too: taken once, within 10 s; a command line
+    in the notification itself, a made-up token or an old one converts nothing);
     with none running the launch becomes the app, converts and quits when nothing is left. `LaunchHandoff` as Windows:
     a few launches wait (lock files with `flock` in the temporary folder, not Windows' semaphores), one converts on its
     own after a minute, the rest exit 1 saying so. Only copies of the same bundle take each other's requests (Windows:
