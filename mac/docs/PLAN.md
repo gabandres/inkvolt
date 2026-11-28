@@ -347,7 +347,11 @@ mac/InkvoltPrintKit --build-system native`.
   differences:** a plan's problem is a `DirectPrintProblem` where Windows has
   an out string; the job's Print-Job body (its attributes, then each page as it's encoded) goes to a temporary file that
   URLSession uploads and that's deleted after, as Windows streams its raster file, but a job past 1 GB is refused before
-  anything is sent with the printer's too-large words (`DirectJobFile.maxBytes`; Windows has no limit), and the PDF is
+  anything is sent with the printer's too-large words (`DirectJobFile.maxBytes`; Windows has no limit), a page of the
+  chosen paper has at most 150 million pixels at the plan's resolution (`DirectPrintPlan.maxPagePixels`, the pre-release
+  review of 1.4: a printer may list paper up to 2 m × 5 m, whose page at 300 dpi took several GB to draw, convert and
+  enlarge): the highest resolution the printer offers that fits, by the same 300-first rule, else `.paperTooLarge` in
+  words before anything is drawn (Windows has no such limit), and the PDF is
   opened again from its file off the main thread; the printer that
   wants a signed-in user is sent to Set Up in macOS; Get-Jobs' jobs keep their IPP `job-state` where Windows maps them to the
   spooler's status bits; `DirectPrintTests`' Photo_names_map_both_ways and the AppState file check aren't ported (Windows'

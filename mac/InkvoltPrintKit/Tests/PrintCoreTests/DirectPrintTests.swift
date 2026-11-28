@@ -296,6 +296,21 @@ struct DirectPrintTests {
         #expect([odd.renderDpi, odd.enlarge] == [360, 1] as [Int])
     }
 
+    /// The pre-release review: a printer listing paper up to 2 m × 5 m had its page drawn at 300 dpi or more, several GB.
+    /// A page of the paper must fit in `maxPagePixels`: a lower resolution the printer offers, else said in words.
+    @Test func hugePaperIsPrintedAtALowerResolutionOrRefusedInWords() throws {
+        let banner = DirectPaper("roll_max_36x100in", 91440, 254_000, 0, 0, 0, 0) // 36 × 100 in: 324 M pixels at 300 dpi
+        let roll = DirectPaper("roll_max_2x5m", 200_000, 500_000, 0, 0, 0, 0)
+        let lower = try Self.plan(Self.caps { $0.papers.append(banner); $0.pwgDpis = [150, 300, 600] }, Self.request { $0.paperName = banner.name })
+        #expect(lower.dpi == 150)
+        #expect(DirectPrintPlan.fits(banner, lower.renderDpi))
+        #expect(Self.problem(Self.caps { $0.papers.append(roll) }, Self.request { $0.paperName = roll.name }) == .paperTooLarge)
+        #expect(DirectPrintProblem.paperTooLarge.message.hasPrefix("This paper is too large"))
+        // Letter at any resolution a printer offers up to 1200 dpi still prints as it did.
+        #expect(try Self.plan(Self.caps { $0.pwgDpis = [1200] }, Self.request()).dpi == 1200)
+        #expect(!DirectPrintPlan.fits(DirectPaper("odd", Int.max, Int.max, 0, 0, 0, 0), 300))
+    }
+
     @Test func onlyTheFormatAskedFor() throws {
         let plan = try Self.plan(Self.caps(), Self.request { $0.format = .pclm })
         #expect(plan.format == .pclm)

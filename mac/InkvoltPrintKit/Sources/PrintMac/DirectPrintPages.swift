@@ -66,7 +66,7 @@ public enum DirectPrintPages {
         let dpi = plan.renderDpi
         let paper = plan.paper
         let (w, h) = (RasterJob.pixels(paper.widthHmm, dpi), RasterJob.pixels(paper.heightHmm, dpi))
-        guard w > 0, h > 0, w * h <= RasterPage.maxPixels else { throw NotDrawn() }
+        guard w > 0, h > 0, DirectPrintPlan.fits(paper, dpi) else { throw NotDrawn() } // a page that fits in memory (the plan chose so)
         let px = { (hmm: Int) in Double(hmm) * Double(dpi) / 2540 }
         let sheet = layout == .sheet
         let (left, top, right, bottom) = sheet ? (0.0, 0.0, 0.0, 0.0) : (px(paper.left), px(paper.top), px(paper.right), px(paper.bottom))

@@ -13353,6 +13353,17 @@
           }
         }
       }
+    },
+    "This paper is too large for Inkvolt Print to print without a driver at the printer's resolutions. Choose a smaller paper size.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este papel es demasiado grande para que Inkvolt Print imprima sin controlador con las resoluciones de la impresora. Elige un tamaño de papel más pequeño."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

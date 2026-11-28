@@ -98,6 +98,7 @@ public struct DirectPrintPlan: Equatable, Sendable {
         if let quality = request.quality, !caps.qualities.contains(quality) { return .failure(.noQuality) }
         if let type = request.mediaType, !caps.mediaTypes.contains(type) { return .failure(.noMediaType) }
         let wantColor = request.color ?? caps.colorByDefault
+        var tooLarge = false
         for format in caps.formats where request.format == nil || format == request.format {
             let colors: [RasterColor], dpis: [Int], back: BackSide
             switch format {
@@ -110,7 +111,12 @@ public struct DirectPrintPlan: Equatable, Sendable {
             else if colors.contains(.gray8) { color = .gray8 }
             else if colors.contains(.rgb8) { color = .rgb8 }
             else { color = nil }
-            guard let color, let dpi = chooseDpi(dpis) else { continue }
+            guard let color else { continue }
+            // Only resolutions at which a page of this paper fits in memory (a plotter's 2 m roll at 600 dpi doesn't).
+            guard let dpi = chooseDpi(dpis.filter { fits(paper, $0) }) else {
+                if !dpis.isEmpty { tooLarge = true }
+                continue
+            }
             // Grey asked for (or a printer that prints only black) on a format that takes only RGB: the pages are made grey here.
             let grey = color == .rgb8 && !(wantColor && caps.color)
             // The printer makes the copies only when it collates them; else the pages go again, a copy at a time.
@@ -124,7 +130,20 @@ public struct DirectPrintPlan: Equatable, Sendable {
             (plan.stripHeight, plan.runLength) = (caps.pclmStripHeight, caps.pclmRunLength)
             return .success(plan)
         }
-        return .failure(.noFormat)
+        return .failure(tooLarge ? .paperTooLarge : .noFormat)
+    }
+
+    /// The most pixels a page of a job may have (the pre-release review: a printer may list paper up to 2 m × 5 m, whose page
+    /// at 300 dpi took several GB in its drawing, its pixels and its enlargement): 150 million, a page of 0.6 GB drawn, 0.45 GB
+    /// as RGB. A letter page at 1200 dpi is 135 million.
+    public static let maxPagePixels = 150_000_000
+
+    /// A page of `paper` at `dpi` has at most `maxPagePixels` (counted without overflowing).
+    public static func fits(_ paper: DirectPaper, _ dpi: Int) -> Bool {
+        let w = RasterJob.pixels(paper.widthHmm, dpi), h = RasterJob.pixels(paper.heightHmm, dpi)
+        guard w > 0, h > 0 else { return false }
+        let (all, overflow) = w.multipliedReportingOverflow(by: h)
+        return !overflow && all <= maxPagePixels
     }
 
     /// 300 when offered, else the lowest above it, else the highest below it.
@@ -156,10 +175,11 @@ public struct DirectPrintPlan: Equatable, Sendable {
 
 /// Why a print can't go straight to the printer, said before anything is drawn or sent (Windows' `CoreStrings.Direct_*`).
 public enum DirectPrintProblem: Error, Equatable, Sendable {
-    case noFormat, notTwoSided, copies, noPaper, noQuality, noMediaType
+    case noFormat, notTwoSided, copies, noPaper, noQuality, noMediaType, paperTooLarge
 
     public var message: String {
         switch self {
+        case .paperTooLarge: loc("This paper is too large for Inkvolt Print to print without a driver at the printer's resolutions. Choose a smaller paper size.")
         case .noFormat: loc("This printer takes none of the formats Inkvolt Print sends without a driver (PWG raster, Apple raster, PCLm).")
         case .notTwoSided: loc("This printer doesn't print on both sides. Turn two-sided off and print again.")
         case .copies: loc("Copies must be between 1 and 999.")
