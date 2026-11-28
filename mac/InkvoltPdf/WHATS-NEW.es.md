@@ -5,6 +5,7 @@ Inkvolt PDF). Los mismos encabezados en el mismo orden y una línea por cada lí
 WHATS-NEW.md necesita aquí su español (`PdfStringsTests` comprueba que los encabezados y el número de líneas coincidan).
 
 ## Next
+- Comprobación de accesibilidad compara los anchos que un PDF da a sus caracteres con los de la propia fuente en todo tipo de fuente incrustada, no solo TrueType: también las fuentes CFF y Type 1 (la mayoría de los PDF de InDesign, LaTeX y Acrobat).
 - En lote, un archivo pequeño que al descomprimirse ocupa mucho más que su tamaño (uno de 200 KB que guarda 200 MB) se procesa solo, para que ya no les quite memoria a los archivos que se procesan a la vez.
 - Buscar en carpetas encuentra una frase de palabras comunes leyendo menos: las páginas de un archivo se leen juntas y se reparten entre los procesadores del Mac, y una página de texto simple se revisa rápido. También encuentra una frase que empieza al final de una serie de más de 1.024 letras y dígitos (un código o un hash largo).
 - Exportar a PowerPoint y HTML conserva los vínculos del PDF: los vínculos a páginas web y a correos siguen abriéndose, y un vínculo a otra página lleva a esa diapositiva o a esa parte de la página. Solo quedan vinculadas las palabras que cubre el vínculo. La columna de Redistribuir también tiene los vínculos del PDF.

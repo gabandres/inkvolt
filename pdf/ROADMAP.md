@@ -114,7 +114,7 @@ PDF/UA's basics, each failure with its number, page and element; the human condi
 Batch's Check Accessibility. Widths (31-016) checked against TrueType, CFF and Type 1 programs (`CffProgram`,
 `Type1Program`). Not checked, as veraPDF doesn't either: 09-007, 09-008 (Ruby, Warichu), 28-018, 31-023. Against
 veraPDF: `pdf/tools/a11y-corpus` (latest results in its README).
-- **Mac:** the CFF and Type 1 widths aren't ported.
+- **Mac:** done (2026-11-27), the CFF and Type 1 widths too (`CffProgram`, `Type1Program`, `TextFont.programWidth`).
 
 ### 1.4 Comments and form data in and out
 Done, Windows and Mac. `CommentFiles` (XFDF, FDF, CSV; import merges by /NM and lets in only an allow-list, cleaned),

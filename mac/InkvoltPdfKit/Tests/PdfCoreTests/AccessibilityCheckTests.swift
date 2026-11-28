@@ -533,6 +533,126 @@ struct AccessibilityCheckTests {
         try fails(inFont(A11yDoc.trueType(11, flags: 4)), "31-024")
     }
 
+    /// A simple font F2 at `at` showing A and B with `widths`, its program after its descriptor.
+    private static func simpleFont(_ at: Int, _ program: [UInt8], _ widths: String, _ fontFile: String, _ streamExtra: String = "") -> [String] {
+        [
+            "<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+Test /FirstChar 65 /LastChar 66 /Widths \(widths) /Encoding /WinAnsiEncoding /FontDescriptor \(at + 1) 0 R >>",
+            "<< /Type /FontDescriptor /FontName /ABCDEF+Test /Flags 32 /FontBBox [0 -200 1000 800] /ItalicAngle 0 /Ascent 800 /Descent -200 /CapHeight 700 /StemV 80 \(fontFile) \(at + 2) 0 R >>",
+            A11yDoc.stream(latin1String(program), streamExtra),
+        ]
+    }
+
+    private static func type1Font(_ program: [UInt8], _ widths: String) -> [String] { simpleFont(11, program, widths, "/FontFile") }
+
+    private static func cffFont(_ program: [UInt8], _ widths: String) -> [String] { simpleFont(11, program, widths, "/FontFile3", "/Subtype /Type1C") }
+
+    /// A composite font F2 (Identity-H) over a CID-keyed CFF program, CIDs 36 and 37 (A and B) with `widths`.
+    private func cidCffFont(_ program: [UInt8], _ widths: String) -> A11yDoc {
+        inFont([
+            "<< /Type /Font /Subtype /Type0 /BaseFont /ABCDEF+Test /Encoding /Identity-H /DescendantFonts [12 0 R] /ToUnicode 15 0 R >>",
+            "<< /Type /Font /Subtype /CIDFontType0 /BaseFont /ABCDEF+Test /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /FontDescriptor 13 0 R /DW 1000 /W [36 [\(widths)]] >>",
+            "<< /Type /FontDescriptor /FontName /ABCDEF+Test /Flags 32 /FontBBox [0 -200 1000 800] /ItalicAngle 0 /Ascent 800 /Descent -200 /CapHeight 700 /StemV 80 /FontFile3 14 0 R >>",
+            A11yDoc.stream(latin1String(program), "/Subtype /CIDFontType0C"),
+            A11yDoc.stream("1 begincodespacerange <0000> <FFFF> endcodespacerange 2 beginbfchar <0024> <0041> <0025> <0042> endbfchar"),
+        ], "<00240025>")
+    }
+
+    @Test func Type1WidthsComeFromTheCharStrings() throws {
+        typealias F = TestFontPrograms
+        // A (600) and B (700) set by hsbw; B's written past ±1131 as a 32-bit number in a font of 0.0005 to the unit.
+        let program = F.type1([("A", F.hsbw(600)), ("B", F.hsbw(700))])
+        try passes(inFont(Self.type1Font(program, "[600 700]")))
+        try passes(inFont(Self.type1Font(program, "[601 699]"))) // within a unit, as veraPDF allows
+        try fails(inFont(Self.type1Font(program, "[600 650]")), "31-016")
+        let half = F.type1([("A", F.hsbw(1200)), ("B", F.hsbw(1400))], fontMatrix: "0.0005")
+        try passes(inFont(Self.type1Font(half, "[600 700]")))
+        try fails(inFont(Self.type1Font(half, "[1200 1400]")), "31-016")
+        // sbw (sbx sby wx wy) and a width divided (div) give it too.
+        let sbw = F.type1([("A", F.num(0) + F.num(0) + F.num(600) + F.num(0) + [12, 7, 14]),
+                           ("B", F.num(0) + F.num(1050) + F.num(3) + [12, 12] + F.num(2) + [12, 12, 13, 14])])
+        let widths = try #require(Type1Program.read(sbw))
+        #expect(widths.advance("A") == 600)
+        #expect(widths.advance("B") == 175) // 1050 / 3 / 2
+        try passes(inFont(Self.type1Font(sbw, "[600 175]")))
+        try fails(inFont(Self.type1Font(sbw, "[600 350]")), "31-016")
+    }
+
+    @Test func CffWidthsComeFromTheCharStrings() throws {
+        typealias F = TestFontPrograms
+        // Default width 500 (A has none), nominal 600 + 100 (B's leading operand, found after a call to a local
+        // subroutine that holds the hints).
+        let privateDict = F.Private(500, 600, [F.cs(10, 20, F.hStem, F.return)])
+        let cff = F.cff([(34, F.cs(F.endChar)), (35, F.cs(100, -107, F.callSubr, 0, 0, F.rMoveTo, F.endChar))], [privateDict])
+        let program = try #require(CffProgram.read(cff))
+        #expect(program.advance("A") == 500)
+        #expect(program.advance("B") == 700)
+        #expect(program.advance("C") == nil)
+        try passes(inFont(Self.cffFont(cff, "[500 700]")))
+        try fails(inFont(Self.cffFont(cff, "[500 600]")), "31-016")
+        // A FontMatrix of 0.0005 to the unit (a real number in the Top DICT) halves them.
+        let half = F.cff([(34, F.cs(F.endChar)), (35, F.cs(100, F.endChar))], [privateDict], topMatrix: "0.0005")
+        #expect(CffProgram.read(half)?.advance("B") == 350)
+        try fails(inFont(Self.cffFont(half, "[500 700]")), "31-016")
+        try passes(inFont(Self.cffFont(half, "[250 350]")))
+    }
+
+    @Test func CidKeyedCffWidthsComeFromEachGlyphsPrivateDict() throws {
+        typealias F = TestFontPrograms
+        // CID 36 in font DICT 0 (nominal 0), CID 37 in font DICT 1 (nominal 400, and its own FontMatrix of 0.002, under a
+        // Top DICT matrix of 1): FDSelect picks.
+        let cff = F.cff([(36, F.cs(667, F.endChar)), (37, F.cs(-100, F.endChar))],
+                        [F.Private(1000, 0), F.Private(1000, 400, fontMatrix: "0.002")], cid: true, fdOfGlyph: [0, 0, 1], topMatrix: "1")
+        let program = try #require(CffProgram.read(cff))
+        #expect(program.isCid)
+        #expect(program.advanceOfCid(36) == 667)
+        #expect(program.advanceOfCid(37) == 600)
+        #expect(program.advanceOfCid(38) == nil)
+        try passes(cidCffFont(cff, "667 600"))
+        try fails(cidCffFont(cff, "667 300"), "31-016")
+
+        // 0.001 in both the Top DICT and the font DICT (as many CID fonts write it): the em counts once, as FreeType reads it.
+        let both = F.cff([(36, F.cs(667, F.endChar))], [F.Private(1000, 0, fontMatrix: "0.001")], cid: true, topMatrix: "0.001")
+        #expect(CffProgram.read(both)?.advanceOfCid(36) == 667)
+        #expect(abs(CffProgram.combinedScale(nil, nil) - 1) < 1e-9)
+        #expect(abs(CffProgram.combinedScale(1, 0.001) - 1) < 1e-9)
+        #expect(abs(CffProgram.combinedScale(0.0005, 0.001) - 0.5) < 1e-9)
+
+        // Read from many threads at once, the widths come out the same (the cache is made with the program, under a lock).
+        let shared = try #require(CffProgram.read(cff))
+        let widths = Collected<Double?>()
+        DispatchQueue.concurrentPerform(iterations: 64) { i in widths.add(shared.advanceOfCid(36 + i % 2)) }
+        #expect(Set(widths.all) == [600, 667])
+    }
+
+    @Test func HostileFontProgramsGiveNoWidthAndNoHang() throws {
+        typealias F = TestFontPrograms
+        // A subroutine that calls itself; one past the end; a charstring that draws before any width; hsbw with too few numbers.
+        let loop = F.Private(500, 600, [F.cs(-107, F.callSubr)])
+        let cff = F.cff([(34, F.cs(-107, F.callSubr)), (35, F.cs(5, F.callSubr)), (36, F.cs(1, 2, .op(5)))], [loop])
+        let program = try #require(CffProgram.read(cff))
+        #expect(program.advance("A") == nil)
+        #expect(program.advance("B") == nil)
+        #expect(program.advance("C") == nil)
+        try doesNotFail(inFont(Self.cffFont(cff, "[1 2]")), "31-016")
+        // A stack past 48 numbers.
+        let deep = F.cff([(34, F.cs([TestFontPrograms.Part](repeating: 1, count: 60) + [F.endChar]))], [loop])
+        #expect(CffProgram.read(deep)?.advance("A") == nil)
+        // CID-keyed: a font DICT index past FDArray, then its range running far past the glyphs: no width, quickly.
+        let cid = F.cff([(36, F.cs(1, F.endChar))], [F.Private(1000, 0)], cid: true, fdOfGlyph: [0, 7])
+        #expect(CffProgram.read(cid)?.advanceOfCid(36) == nil)
+        var bad = cid
+        bad[bad.count - 2] = 0xFF // the sentinel: 65,282 glyphs
+        #expect(CffProgram.read(bad)?.advanceOfCid(36) == nil)
+        // Type 1: a division by zero, hsbw with one number, a last charstring whose length runs past the end of the program.
+        let t1 = F.type1([("A", F.num(5) + F.num(0) + [12, 12, 13]), ("B", F.num(5) + [13]), ("C", F.hsbw(500))], cutLast: true)
+        let read = try #require(Type1Program.read(t1))
+        #expect(read.advance("A") == nil)
+        #expect(read.advance("B") == nil)
+        #expect(read.hasName("C"))
+        #expect(read.advance("C") == nil)
+        try doesNotFail(inFont(Self.type1Font(t1, "[1 2]")), "31-016")
+    }
+
     @Test func CompositeFontsAndCMaps() throws {
         try passes(inFont(A11yDoc.composite(11), "<0024>").withToUnicode())
         try fails(inFont(A11yDoc.composite(11, cidExtra: ""), "<0024>").withToUnicode(), "31-005")

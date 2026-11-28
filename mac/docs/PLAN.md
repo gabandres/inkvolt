@@ -2525,6 +2525,10 @@ under their names (3.2's links in the exports were already ported, 803da39c). Ma
   block's length against its complement, so a content stream's text read as deflate data counted the file after it (a
   page's "0 0 1 rg" became a 12,576-byte stored block). The split-keyword test straddles the Mac's 1 MB reading blocks
   (Windows': 64 KB, then 1 MB; its test kept 65,530-65,536).
+- **1.3, CFF and Type 1 widths in the accessibility check (31-016)** (`CffProgram.advance`, `advanceOfCid`, its Type 2
+  `WidthRun`, `combinedScale`; `Type1Program.advance`; `TextFont.programWidth`; the test fonts `TestFontPrograms`). As
+  Windows; the CFF DICT reader now reads real numbers (it read them as 0), which FontMatrix needs. Not run: the accessibility
+  corpus (`AccessibilityCorpusTests`, opt-in with `INKVOLT_A11Y_CORPUS`; Windows' `pdf/tools/a11y-corpus` PDFs aren't on the build Mac).
 
 ## Open decisions
 

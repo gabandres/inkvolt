@@ -453,11 +453,22 @@ final class TextFont: @unchecked Sendable {
         return (0..<256).contains(code) ? widths[code] : nil
     }
 
-    /// A code's advance in the embedded TrueType program, in thousandths of an em, or nil.
+    /// A code's advance in the embedded program, in thousandths of an em, or nil: TrueType by glyph index (hmtx); CFF and
+    /// Type 1 by the glyph's charstring, found by glyph name in a simple font, by CID in a composite one.
     func programWidth(_ code: Int) -> Double? {
-        guard let tt = program as? TrueTypeProgram else { return nil }
-        let g = gidOf(code)
-        return g >= 0 && g < tt.numGlyphs ? tt.advance(g) : nil
+        switch program {
+        case let tt as TrueTypeProgram:
+            let g = gidOf(code)
+            return g >= 0 && g < tt.numGlyphs ? tt.advance(g) : nil
+        case let cff as CffProgram where twoByte:
+            return cff.advanceOfCid(code)
+        case let cff as CffProgram where !cff.isCid:
+            return glyphNameOf(code).flatMap(cff.advance)
+        case let t1 as Type1Program where !twoByte:
+            return glyphNameOf(code).flatMap(t1.advance)
+        default:
+            return nil
+        }
     }
 
     /// Whether the font can draw a code: its glyph is in the embedded program, or the font isn't embedded.
