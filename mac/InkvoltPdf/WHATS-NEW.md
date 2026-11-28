@@ -6,6 +6,7 @@ collects what's done since the last release and is never shown. Short lines, in 
 their Spanish, line for line, shown when the app runs in Spanish: an English line needs its Spanish there (`PdfStringsTests`).
 
 ## Next
+- View › Highlight Form Fields turns the blue tint over a form's fields off and on.
 - Go › Previous View (⌘[) and Next View (⌘]) take you back to where you were before following a link, a bookmark or Go to Page, and forward again.
 - File › Show in Finder shows the document's file in Finder, and File › Close All (⌥⌘W) closes every document in the window, asking first about any with changes.
 - Export Pages as Images… (File › Export To, and Convert › Images…): the pages you choose as PNG or JPEG pictures, at 72 to 600 dpi, in a folder you pick.

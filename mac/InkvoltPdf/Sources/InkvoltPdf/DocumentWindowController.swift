@@ -314,6 +314,12 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     /// View › Dark Pages (Night Reading): every window's pages, thumbnails and organizer, kept as a setting.
     @objc func toggleDarkPages(_ sender: Any?) { AppSettings.setDarkPages(!AppSettings.darkPages) }
 
+    /// View › Highlight Form Fields: this document's fields tinted or not (every pane).
+    @objc func toggleHighlightFields(_ sender: Any?) {
+        form.highlights.toggle()
+        for view in allPanes { view.needsDisplay = true }
+    }
+
     func windowWillClose(_ notification: Notification) {
         // Reopen at last page: where this file was left.
         if !Report.isRunning || AppTest.isActive { rememberPosition() }
@@ -946,6 +952,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
             item.state = item.action.flatMap { modes[$0] } == activePages.readingMode ? .on : .off
         case #selector(toggleDarkPages(_:)):
             item.state = AppSettings.darkPages ? .on : .off
+        case #selector(toggleHighlightFields(_:)):
+            item.state = form.highlights && !form.widgets.isEmpty ? .on : .off
         case #selector(chooseTool(_:)):
             item.state = pages.tool.rawValue == item.tag ? .on : .off
         case #selector(chooseSnapshot(_:)):

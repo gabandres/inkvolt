@@ -5,6 +5,7 @@ Inkvolt PDF). Los mismos encabezados en el mismo orden y una línea por cada lí
 WHATS-NEW.md necesita aquí su español (`PdfStringsTests` comprueba que los encabezados y el número de líneas coincidan).
 
 ## Next
+- Visualización › Resaltar campos de formulario quita y vuelve a poner el tono azul sobre los campos de un formulario.
 - Ir › Vista anterior (⌘[) y Vista siguiente (⌘]) te devuelven adonde estabas antes de seguir un vínculo, un marcador o Ir a la página, y te llevan de nuevo hacia adelante.
 - Archivo › Mostrar en Finder muestra el archivo del documento en Finder, y Archivo › Cerrar todo (⌥⌘W) cierra todos los documentos de la ventana y pregunta antes por los que tienen cambios.
 - Exportar páginas como imágenes… (Archivo › Exportar a, y Convertir › Imágenes…): las páginas que elijas como imágenes PNG o JPEG, de 72 a 600 ppp, en la carpeta que elijas.

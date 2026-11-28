@@ -367,6 +367,8 @@ public enum DocumentCommands {
         c("Rotate View Clockwise", "rotateViewClockwise:", "r", [.command, .shift], needs: [.pages]),
         c("Rotate View Counterclockwise", "rotateViewCounterclockwise:", "l", [.command, .shift], needs: [.pages]),
         c("Dark Pages (Night Reading)", "toggleDarkPages:"),
+        // Windows: View › Highlight Form Fields, on when a document opens (the Mac tinted them always).
+        c("Highlight Form Fields", "toggleHighlightFields:", needs: [.formFields]),
         sep,
         // Roadmap 4.19 (Windows: View › Rulers, Ctrl+R; Grid, Ctrl+U; Guides and Snapping). ⌘R turns pages here, ⌘'
         // switches panes.

@@ -27753,6 +27753,17 @@
           }
         }
       }
+    },
+    "Highlight Form Fields": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resaltar campos de formulario"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -2466,6 +2466,11 @@ Windows as the spec; `ParityTest` (`--edit --only-parity`) drives them in the ap
   Page, citations, the inventory, signatures and accessibility findings do; Next and Previous Page, a thumbnail, the
   page a document reopens at, Reflow's page and Zoom to Page don't. Not checked by a person: ⌘[ and ⌘] by hand, a
   trackpad's swipe (not wired: Windows has no gesture either).
+- Highlight Form Fields (X4): View › Highlight Form Fields (Windows' View menu; it also has a check box on its form bar,
+  which the Mac has no counterpart of), on when a document opens, for that document's panes, not kept as a setting (as
+  Windows' each tab). Off, the fields to fill are neither tinted nor outlined and only the focused one's ring shows (the
+  Mac tinted them always). Dark pages still outline them where Windows draws nothing. Not checked by a person: the
+  fields on screen either way.
 
 ### Paragraph editing (roadmap 2.1)
 

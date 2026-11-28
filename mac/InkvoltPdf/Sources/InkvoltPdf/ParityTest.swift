@@ -45,6 +45,7 @@ struct ParityTest {
         await exportImages()
         await showInFinderAndCloseAll()
         await history()
+        await highlightFields()
         Report.write(lines.joined(separator: "\n"))
         Report.write("parity: \(failures == 0 ? "PASS" : "FAIL (\(failures))")")
     }
@@ -148,5 +149,20 @@ struct ParityTest {
         }
         controller.go(0, record: false)
         await settle()
+    }
+
+    // MARK: Highlight Form Fields
+
+    private mutating func highlightFields() async {
+        let docs = NSDocumentController.shared.documents.compactMap { $0.windowControllers.first as? DocumentWindowController }
+        let plain = docs.first { $0.form.widgets.isEmpty }, form = docs.first { !$0.form.widgets.isEmpty }
+        guard let item = menuItem(loc("Highlight Form Fields")) else { return check(false, "highlight fields: View › Highlight Form Fields in the menu") }
+        if let plain { check(!plain.validateMenuItem(item), "highlight fields: off without form fields") }
+        guard let form else { return check(false, "highlight fields: a document with fields open") }
+        check(form.validateMenuItem(item) && item.state == .on && form.form.highlights, "highlight fields: on when a form opens, checked")
+        form.toggleHighlightFields(nil)
+        check(!form.form.highlights && form.validateMenuItem(item) && item.state == .off, "highlight fields: turned off, unchecked")
+        form.toggleHighlightFields(nil)
+        check(form.form.highlights, "highlight fields: on again")
     }
 }

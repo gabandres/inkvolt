@@ -81,13 +81,17 @@ final class FormFiller: NSObject, NSTextFieldDelegate, NSComboBoxDelegate {
 
     // MARK: Drawing
 
+    /// View › Highlight Form Fields (Windows' `HighlightFields`): the fields to fill tinted and outlined; off, only the
+    /// focused one's ring shows. On when the document opens, as Windows' each tab.
+    var highlights = true
+
     /// Outlines the fields to fill on a page, the focused one with the focus ring.
     func draw(_ page: Int, _ r: NSRect) {
         guard let pages else { return }
         let px = pages.onePixel
         // Dark pages: no tint over the fields (as Windows), only their outline.
         let tint = !PageRenderer.nightReading
-        for w in fillable where w.pageIndex == page && w.kind != .pushButton {
+        for w in fillable where highlights && w.pageIndex == page && w.kind != .pushButton {
             let rect = pages.viewRect(w.rect, r)
             if tint {
                 NSColor.systemBlue.withAlphaComponent(0.07).setFill()
