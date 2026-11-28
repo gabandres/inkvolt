@@ -38,6 +38,8 @@ enum AppSettings {
         static let aiTranslateLanguage = "AiTranslateLanguage"
         static let ocrClean = "OcrClean"
         static let ocrSuspects = "OcrSuspects"
+        static let ocrTrapezoid = "OcrTrapezoid"
+        static let ocrCurvedLines = "OcrCurvedLines"
         static let spellCheck = "SpellCheck"
         static let meaningEnabled = "MeaningEnabled"
         static let meaningModel = "MeaningModel"
@@ -195,6 +197,25 @@ enum AppSettings {
     static var ocrSuspects: Bool {
         get { bool(Key.ocrSuspects, true) }
         set { defaults.set(newValue, forKey: Key.ocrSuspects) }
+    }
+
+    /// The cleaning's further steps (roadmap 2.2; on by default, as on Windows): a page photographed at an angle
+    /// straightened, a book's bent lines flattened, each only where a page clearly needs it.
+    static var ocrTrapezoid: Bool {
+        get { bool(Key.ocrTrapezoid, true) }
+        set { defaults.set(newValue, forKey: Key.ocrTrapezoid) }
+    }
+
+    static var ocrCurvedLines: Bool {
+        get { bool(Key.ocrCurvedLines, true) }
+        set { defaults.set(newValue, forKey: Key.ocrCurvedLines) }
+    }
+
+    /// Recognize Text's choices as last set (Windows' `PageOcr.OptionsAsSet`): cleaned or not, suspect words, and with
+    /// cleaning a photographed page's trapezoid and a book's bent lines.
+    static func ocrOptions(keepCleaned: Bool = false) -> RecognizeOptions {
+        RecognizeOptions(clean: ocrClean, checkWords: ocrSuspects, keepCleanedImage: keepCleaned,
+                         trapezoid: ocrClean && ocrTrapezoid, curvedLines: ocrClean && ocrCurvedLines)
     }
 
     /// The version this was last run as ("1.0.0"): What's New after an update shows what came since.

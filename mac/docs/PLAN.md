@@ -1028,6 +1028,7 @@ at under "What a person must look at" and in each section.
 | 4.9 | Two documents side by side (roadmap 4.9): AppKit's window tabs (Window › Move Tab to New Window, a tab dragged out or onto another window, Merge All Windows) kept in step with `DocumentWindows` by the app's `WindowHub`: a file open once (in any window, by any spelling of its path, never read twice at once), documents opened join the window used last, File › New Window and the Dock menu's New Window give the next document a window of its own (`--edit --only-windows` drives it) | DocumentWindowsTests |
 | 4.16 | The Reflow view (roadmap 4.16): View › Reflow (⌘3), the document's text as one column in place of the pages, Export's HTML in a WKWebView with page scripts off at `Reflow.address`, the look following the view's zoom and Dark Pages, the page kept both ways, links to the browser, read-only but for its commands (`Reflow`, `ReflowPosition`, ReflowView.swift; `--edit --only-reflow` drives it) | ReflowTests |
 | 4.2 | Find and Replace across the document (roadmap 4.2): Edit › Find › Find and Replace…, a sheet listing every match with its page and the words around it as it is typed, Replace and Replace All (one undo step, one save, what couldn't be replaced as asked listed) (`TextReplace`, `ContentEditor.paragraphsOf`/`replaceParagraphIn`, ReplaceSheet.swift) | TextReplaceTests (with `ReplacedTextReadsTheSameInPdfJs`, opt-in) |
+| 2.2b | Better OCR, the rest (roadmap 2.2's Mac line; Vision only, no Tesseract): photographed pages (PrintCore `Trapezoid`, `CurvedLines`, `ScanCleanup`'s `CleanupSteps`; Recognize Text's two check boxes) | PageWarpTests |
 
 From the steps, besides the sections below:
 - D8: `release.sh --publish` rebuilds and re-notarizes, so the published DMG's SHA-256 differs from the one verified
@@ -2513,6 +2514,29 @@ Ported from Windows' modules and tests (2026-11-23, on `buildmac`).
   turns it), and the Mac's paragraphs have no pictures in their flow yet (Windows' `InlinePicture`), so none turn with
   them. As on Windows, a paragraph turned so far that its box takes in other text (a heading above) can't be edited or
   turned again until Undo takes the turn back. Not checked by a person: the handle and the turned outline by eye, dragging it by hand.
+
+### Better OCR, the rest (roadmap 2.2's Mac line)
+
+The owner's decision (2026-11-27): **no Tesseract on the Mac**. Everything reads with Apple's Vision (`VisionRecognizer`
+through `PageOcr` and `ScanText`), no new package. Tesseract's optional download stays Windows-only: Vision reads about
+30 languages where Tesseract reads over 100, but Vision skips no line on the OCR corpus (`VisionProbeTests`), so
+Windows' `MissedLines` and `ReadOnes` aren't needed either. The download (`TesseractStore`, `TesseractCatalog`,
+`TesseractRecognizer`, `Lzma`, `BoundedProcess`) can be ported if Mac users ask for a language Vision lacks: Inkvolt PDF
+for Mac is unsandboxed and signed with Developer ID, so it could keep the files in Application Support and run them.
+
+- **Photographed pages** (Windows' `Imaging/PageWarp.cs`, shared): PrintCore's `Trapezoid` (`Homography`, `Perspective`,
+  ported for Inkvolt Print's camera, 4.12) gains `Perspective.apply` and `PageWarp.fit`/`eval`; `CurvedLines` and
+  `LineCurve` are new (`Imaging/CurvedLines.swift`), so PrintCore builds them on the PC too; `ScanCleanup.clean(…steps:)`
+  takes `CleanupSteps` (`.trapezoid`, `.curvedLines`) and returns the `perspective` and `curve` it used, with Windows'
+  order (the trapezoid first; a page tilted up to 3° looked at for bent lines as it is, flattened in place of being turned;
+  else straightened, then flattened). PdfCore: `RecognizeOptions.trapezoid` and `curvedLines` (`steps`), `ScanFrame`'s
+  `perspective` and `curve` (a word mapped back through the warps takes its box's middle lines' length, height and
+  slant). The app: Recognize Text's two check boxes under cleaning (on by default, saved, off without cleaning), and
+  `AppSettings.ocrOptions()` gives Batch, Scan, export and a watched folder the same choices, as Windows'
+  `PageOcr.OptionsAsSet`. PageWarpTests ported with Windows' names (14 tests, 19 cases) over `PhotoCorpus` (Windows'
+  ocr-corpus PhotoCorpus.cs, the same seeds; `ScanCorpus.cleanPage` added); `WordsReadOnAStraightenedPhotoLandOnThePhoto`
+  without `RereadMissed` (the Mac has none). Limits as Windows': letters squeezed near a spine aren't widened, a page with
+  no desk around it has no edges for the trapezoid, two facing pages aren't split.
 
 ## Open decisions
 

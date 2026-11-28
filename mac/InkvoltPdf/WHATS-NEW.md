@@ -11,6 +11,7 @@ their Spanish, line for line, shown when the app runs in Spanish: an English lin
 - Compare Files lines up a scanned page that was scanned at another size or a quarter turn off (sideways or upside down) with the other version before showing what looks different, so the same page no longer looks different all over.
 - Compare Files straightens a scanned page and turns it the right way up before reading its words, as Recognize Text does. When it can't tell which way up a page goes, it reads the page both ways and keeps the reading with real words in your language, so a page scanned upside down is compared by its words.
 - A page with a tiny picture built to unpack gigabytes (a damaged or malicious PDF) no longer takes seconds and then says "This page took too long to read": it shows at once.
+- Recognize Text straightens a page photographed at an angle and flattens lines bent by a book's spine before reading it, so phone photos and open books read much better. Keep the cleaned pages instead of the scans to keep them straightened. Both are on by default and leave pages that don't need them as they are.
 
 ## 1.13.0
 - A PDF opened with its password showed blank white pages (its text could still be searched and copied). Its pages now show.

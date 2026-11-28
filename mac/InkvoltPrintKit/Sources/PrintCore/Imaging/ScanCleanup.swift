@@ -16,6 +16,9 @@ func eachRow(_ count: Int, _ body: (Int) -> Void) {
 /// quarters clockwise after straightening), noise smoothed, the paper evened out to white and lone specks removed. `gray`
 /// is what a recognizer reads; `rgb` (when asked for) is the same page in colour, to keep in the document. `uprightSure`
 /// is false when the page's lines didn't say which way up it is (the caller may try the other way with its recognizer).
+/// `perspective` and `curve`: the page photographed at an angle was straightened first, and its bent lines flattened
+/// (after straightening, or in its place for a page tilted only by its bend; in the frame before the quarter turns), when
+/// those steps were asked for and found something sure.
 public struct CleanedScan: Sendable {
     public let gray: GrayImage
     public let skew: Double
@@ -23,31 +26,97 @@ public struct CleanedScan: Sendable {
     public let uprightSure: Bool
     public let rgb: [UInt8]?
     public let specksRemoved: Int
+    public var perspective: Perspective? = nil
+    public var curve: LineCurve? = nil
 }
 
-/// Cleans a scanned page before text recognition: `Deskew` (up to ±15° here), `PageRotate`, `Upright`, `CleanupSmooth`,
-/// `PaperLevel`, `CleanupDespeckle`, each its own type as on Windows.
+/// The cleanup's further steps, beyond straightening, turning, smoothing, whitening and despeckling (roadmap 2.2).
+public struct CleanupSteps: OptionSet, Sendable {
+    public let rawValue: Int
+    public init(rawValue: Int) { self.rawValue = rawValue }
+
+    /// A page photographed at an angle (a trapezoid on a darker desk) is warped back to a rectangle (`Trapezoid`).
+    public static let trapezoid = CleanupSteps(rawValue: 1)
+    /// Lines of text bent by a book's spine are flattened (`CurvedLines`).
+    public static let curvedLines = CleanupSteps(rawValue: 2)
+    public static let all: CleanupSteps = [.trapezoid, .curvedLines]
+}
+
+/// Cleans a scanned page before text recognition: `Trapezoid` (when asked), `Deskew` (up to ±15° here), `PageRotate`,
+/// `CleanupSmooth`, `PaperLevel`, `CleanupDespeckle`, `CurvedLines` (when asked), `Upright`, each its own type as on Windows.
 public enum ScanCleanup {
     /// The largest skew straightened (a sheet laid on the glass by hand, a feeder that grabbed it crooked).
     public static let maxSkew = 15.0
 
+    /// A page tilted by up to this (degrees) is first looked at for bent lines as it is (a book's page), before it is
+    /// straightened.
+    public static let maxTiltOfBentLines = 3.0
+
     /// `pixels` (rows of `width` × `channels` bytes, 1 = grey, 3 = RGB) at `dpi`. `keepColor` also returns the cleaned page
-    /// in colour (RGB input only).
+    /// in colour (RGB input only). `steps`: the further steps to try (a photographed page's trapezoid, bent lines); each
+    /// changes the page only when it finds something sure.
     /// - Throws: `CancellationError` when `stop` fires.
     public static func clean(_ pixels: [UInt8], _ width: Int, _ height: Int, _ channels: Int, _ dpi: Int, keepColor: Bool,
-                             stop: BatchStop?) throws -> CleanedScan {
+                             stop: BatchStop?, steps: CleanupSteps = []) throws -> CleanedScan {
         var gray = channels == 1 ? pixels : try CleanupGray.of(pixels, width, height, stop)
+        var color: [UInt8]? = keepColor && channels == 3 ? pixels : nil
+
+        // A page photographed at an angle: warped to a rectangle first, so the rest sees a page lying flat.
+        var perspective: Perspective?
+        if steps.contains(.trapezoid), let found = try Trapezoid.find(GrayImage(width, height, gray), stop: stop) {
+            perspective = found
+            gray = try found.apply(gray, width, height, 1, stop: stop)
+            if let c = color { color = try found.apply(c, width, height, 3, stop: stop) }
+        }
+
         let factor = max(1, Int((Double(dpi) / 100).rounded(.toNearestOrEven))) // bounded: dpi is an Int
-        let (skew, sideways, axisSure) = linesOf(downscale(GrayImage(width, height, gray), factor))
+        var (skew, sideways, axisSure) = linesOf(downscale(GrayImage(width, height, gray), factor))
         try stop?.check()
 
+        // A book's bent lines look tilted on the whole: looked for on the page as it is (smoothed and whitened, so a desk,
+        // a shadow or grey paper isn't ink), and when found, flattened without turning the page, so its margins stay
+        // upright (turned, then flattened, the margins would lean by the tilt). Not found there, it isn't looked for again.
+        var curve: LineCurve?
+        var flattened: (smooth: [UInt8], paper: PaperLevel.Map)?
+        var bendLooked = false
+        if steps.contains(.curvedLines) && skew != 0 && abs(skew) <= maxTiltOfBentLines {
+            bendLooked = true
+            var asIs = try CleanupSmooth.median3(gray, width, height, stop)
+            let level = PaperLevel.estimate(asIs, width, height, dpi)
+            PaperLevel.whiten(&asIs, level)
+            if let tilted = try CurvedLines.find(GrayImage(width, height, asIs), dpi, vertical: sideways, stop: stop) {
+                (curve, skew, flattened) = (tilted, 0, (asIs, level))
+            }
+        }
+
         if skew != 0 { gray = PageRotate.rotate(gray, width, height, width, 1, -skew) }
-        var smooth = try CleanupSmooth.median3(gray, width, height, stop)
+        var (smooth, paper): ([UInt8], PaperLevel.Map)
+        if let flattened {
+            (smooth, paper) = flattened
+        } else {
+            smooth = try CleanupSmooth.median3(gray, width, height, stop)
+            paper = PaperLevel.estimate(smooth, width, height, dpi)
+            PaperLevel.whiten(&smooth, paper)
+        }
         try stop?.check()
-        let paper = PaperLevel.estimate(smooth, width, height, dpi)
-        PaperLevel.whiten(&smooth, paper)
         let specks = try CleanupDespeckle.remove(&smooth, width, height, dpi, stop)
         try stop?.check()
+
+        var rgb: [UInt8]?
+        if let c = color {
+            var colored = skew != 0 ? PageRotate.rotate(c, width, height, width * 3, 3, -skew) : c
+            PaperLevel.whitenColor(&colored, smooth, paper)
+            rgb = colored
+        }
+
+        // Lines bent by a book's spine: flattened along the way they run, before telling which way up the page is.
+        if steps.contains(.curvedLines) && curve == nil && !bendLooked {
+            curve = try CurvedLines.find(GrayImage(width, height, smooth), dpi, vertical: sideways, stop: stop)
+        }
+        if let curve {
+            smooth = try curve.apply(smooth, width, height, 1, stop: stop)
+            if let c = rgb { rgb = try curve.apply(c, width, height, 3, stop: stop) }
+        }
 
         // Lines that run down the page are turned a quarter to run across; then which way up is told by the letters.
         var small = downscale(GrayImage(width, height, smooth), factor)
@@ -55,15 +124,10 @@ public enum ScanCleanup {
         let (flipped, waySure) = Upright.upsideDown(small)
         let turns = (sideways ? 1 : 0) + (flipped ? 2 : 0)
 
-        var rgb: [UInt8]?
-        if keepColor && channels == 3 {
-            var color = skew != 0 ? PageRotate.rotate(pixels, width, height, width * 3, 3, -skew) : pixels
-            PaperLevel.whitenColor(&color, smooth, paper)
-            rgb = turn(color, width, height, 3, turns)
-        }
+        if let c = rgb { rgb = turn(c, width, height, 3, turns) }
         let (w, h) = turns % 2 == 0 ? (width, height) : (height, width)
         return CleanedScan(gray: GrayImage(w, h, turn(smooth, width, height, 1, turns)), skew: skew, quarterTurns: turns,
-                           uprightSure: axisSure && waySure, rgb: rgb, specksRemoved: specks)
+                           uprightSure: axisSure && waySure, rgb: rgb, specksRemoved: specks, perspective: perspective, curve: curve)
     }
 
     /// How far a page's lines are turned (clockwise positive), up to ±`maxSkew`, measured on a copy at about 100 dpi; 0

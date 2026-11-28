@@ -15,7 +15,7 @@ public struct WarpPoint: Equatable, Hashable, Sendable {
 
 /// A projective map of the plane (a homography; the Windows Core's `Homography`): (x, y) goes to ((a x + b y + c) / w,
 /// (d x + e y + f) / w) with w = g x + h y + 1. Maps the straightened page onto the photo it was taken from.
-public struct Homography: Sendable {
+public struct Homography: Sendable, Equatable {
     private let h: [Double]
 
     public func apply(_ x: Double, _ y: Double) -> WarpPoint {
@@ -53,13 +53,36 @@ public struct Homography: Sendable {
 /// A page photographed at an angle, straightened (the Windows Core's `Perspective`): the page lies in the rectangle
 /// `left`…`right` × `top`…`bottom` (its proportions as the photo shows them, centred), and `map` takes a point of it to where
 /// it was in the photo. `corners`: the page's corners in the photo, clockwise from the top left.
-public struct Perspective: Sendable {
+public struct Perspective: Sendable, Equatable {
     public let map: Homography
     public let left, top, right, bottom: Double
     public let corners: [WarpPoint]
 
     /// Where a point of the straightened page (pixels, continuous) was in the photo.
     public func source(_ x: Double, _ y: Double) -> WarpPoint { map.apply(x, y) }
+
+    /// The photo's pixels (rows of `width` × `channels` bytes) warped onto the straightened page: same size, white outside
+    /// the page (Recognize Text's cleaning, roadmap 2.2). Throws `CancellationError` when `stop` fires.
+    public func apply(_ pixels: [UInt8], _ width: Int, _ height: Int, _ channels: Int, stop: BatchStop? = nil) throws -> [UInt8] {
+        var result = [UInt8](repeating: 255, count: pixels.count)
+        let (l, t, r, b, map) = (left, top, right, bottom, map)
+        try pixels.withUnsafeBufferPointer { src in
+            try result.withUnsafeMutableBufferPointer { dst in
+                let out = dst
+                try cleanupRows(height, stop) { y in
+                    let cy = Double(y) + 0.5
+                    if cy < t || cy > b { return }
+                    for x in 0..<width {
+                        let cx = Double(x) + 0.5
+                        if cx < l || cx > r { continue }
+                        let s = map.apply(cx, cy)
+                        PageWarp.sample(src, width, height, channels, s.x - 0.5, s.y - 0.5, out, (y * width + x) * channels)
+                    }
+                }
+            }
+        }
+        return result
+    }
 }
 
 /// Sampling shared by the warps (the Windows Core's `PageWarp`).
@@ -85,6 +108,39 @@ enum PageWarp {
             let bottom = value(x0, y0 + 1) * (1 - fx) + value(x0 + 1, y0 + 1) * fx
             into[at + c] = UInt8(min(max((top * (1 - fy) + bottom * fy).rounded(.toNearestOrEven), 0), 255))
         }
+    }
+
+    /// A least-squares polynomial of `degree` through (t, value) points; nil when they can't fix one.
+    static func fit(_ t: [Double], _ values: [Double], _ degree: Int) -> [Double]? {
+        let n = degree + 1
+        if t.count < n || values.count < t.count { return nil }
+        var m = [[Double]](repeating: [Double](repeating: 0, count: n + 1), count: n)
+        for k in t.indices {
+            var powers = [Double](repeating: 1, count: 2 * n)
+            for i in 1..<powers.count { powers[i] = powers[i - 1] * t[k] }
+            for i in 0..<n {
+                for j in 0..<n { m[i][j] += powers[i + j] }
+                m[i][n] += powers[i] * values[k]
+            }
+        }
+        for col in 0..<n {
+            var pivot = col
+            for r in (col + 1)..<max(col + 1, n) where abs(m[r][col]) > abs(m[pivot][col]) { pivot = r }
+            if abs(m[pivot][col]) < 1e-12 { return nil }
+            if pivot != col { m.swapAt(col, pivot) }
+            for r in 0..<n where r != col {
+                let k = m[r][col] / m[col][col]
+                for j in col...n { m[r][j] -= k * m[col][j] }
+            }
+        }
+        let coefficients = (0..<n).map { m[$0][n] / m[$0][$0] }
+        return coefficients.allSatisfy(\.isFinite) ? coefficients : nil
+    }
+
+    static func eval(_ coefficients: [Double], _ t: Double) -> Double {
+        var v = 0.0
+        for c in coefficients.reversed() { v = v * t + c }
+        return v
     }
 }
 

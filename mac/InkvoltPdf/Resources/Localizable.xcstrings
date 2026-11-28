@@ -26466,6 +26466,50 @@
           }
         }
       }
+    },
+    "Straighten pages photographed at an angle": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enderezar páginas fotografiadas en ángulo"
+          }
+        }
+      }
+    },
+    "A page photographed at an angle on a darker surface is turned back into a rectangle before recognizing. Pages whose four edges don't clearly show are left as they are.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una página fotografiada en ángulo sobre una superficie más oscura vuelve a ser un rectángulo antes de reconocerla. Las páginas cuyos cuatro bordes no se ven con claridad se dejan como están."
+          }
+        }
+      }
+    },
+    "Flatten lines bent by a book's spine": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aplanar las líneas curvadas por el lomo de un libro"
+          }
+        }
+      }
+    },
+    "Lines of text that curve towards the binding of an open book are made straight before recognizing. Pages whose lines are already straight are left as they are.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las líneas de texto que se curvan hacia el lomo de un libro abierto se enderezan antes de reconocerlas. Las páginas con líneas ya rectas se dejan como están."
+          }
+        }
+      }
     }
   },
   "version": "1.0"
