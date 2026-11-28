@@ -149,6 +149,13 @@ public final class SystemScanDevice: NSObject, ScanDevice, @preconcurrency ICSca
     private var pages: AsyncThrowingStream<[UInt8], any Error>.Continuation?
     private var watchdog: Task<Void, Never>?
     private var folder: URL?
+    /// The most bytes a page file of this scan may hold (`ImageCaptureJob.pageLimit`, from the request's area and dpi).
+    private var pageLimit = DeviceHttp.maxScanReplyBytes
+    /// The words from the scanner under way, one after another: a page is read off the main actor, and the next word (the
+    /// next page, the scan's end) waits for it, so pages keep their order and the end comes after the last.
+    private var reading: Task<Void, Never>?
+    /// Scans begun on this device: a word read for one scan is dropped once another has begun.
+    private var scans = 0
     /// Told each step and each word from ImageCaptureCore, in plain words (the report's `--ica-scan`); nil: nothing traced.
     public var trace: ((String) -> Void)?
 
@@ -211,6 +218,8 @@ public final class SystemScanDevice: NSObject, ScanDevice, @preconcurrency ICSca
         // One scan at a time on a device: a second would take the first one's pages.
         if job != nil { throw ScanError(loc("Someone else is using the scanner. Try again in a moment.")) }
         job = ImageCaptureJob()
+        scans += 1
+        pageLimit = DeviceHttp.maxScanReplyBytes
         pages = continuation
         do {
             try await beginUse()
@@ -236,6 +245,7 @@ public final class SystemScanDevice: NSObject, ScanDevice, @preconcurrency ICSca
         // The request's region, its offset kept inside the source (a shared scanner's client may ask for one).
         let area = ScanArea.of(request, sourceWidth: Double(size.width), sourceHeight: Double(size.height))
         unit.scanArea = NSRect(x: area.x, y: area.y, width: area.width, height: area.height)
+        pageLimit = ImageCaptureJob.pageLimit(width: area.width, height: area.height, dpi: Double(unit.resolution))
         if let feeder = unit as? ICScannerFunctionalUnitDocumentFeeder {
             feeder.documentType = .typeDefault
             if feeder.supportsDuplexScanning { feeder.duplexScanningEnabled = request.source == .adfDuplex }
@@ -433,24 +443,53 @@ public final class SystemScanDevice: NSObject, ScanDevice, @preconcurrency ICSca
 
     public func scannerDevice(_ scanner: ICScannerDevice, didScanTo url: URL) {
         trace?("page file \(url.lastPathComponent): \((try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize.map(String.init) ?? "no size") bytes")
-        let event: ImageCaptureJob.Event = switch Self.pageFile(url) {
-        case .page(let page): .page(page)
-        case .tooLarge: .pageTooLarge
-        case .unreadable: .pageUnreadable
+        inTurn { scan in
+            let event = await self.readPage(url)
+            guard scan == self.scans else { return }
+            self.act(self.job?.handle(event) ?? [])
         }
-        try? FileManager.default.removeItem(at: url)
-        act(job?.handle(event) ?? [])
     }
 
     public func scannerDevice(_ scanner: ICScannerDevice, didCompleteScanWithError error: (any Error)?) {
-        let left = folder.flatMap { try? FileManager.default.contentsOfDirectory(atPath: $0.path) } ?? []
-        trace?("scan complete: \(error.map { "\($0)" } ?? "no error"); in the folder: \(left)")
-        // A page the scanner wrote without saying so is still the scan's.
-        for name in left.sorted() {
-            guard let folder else { break }
-            scannerDevice(scanner, didScanTo: folder.appendingPathComponent(name))
+        let reason = error.map(Self.words)
+        trace?("scan complete: \(error.map { "\($0)" } ?? "no error")")
+        inTurn { scan in
+            // A page the scanner wrote without saying so is still the scan's (listed once the pages it named are read and gone).
+            let left = self.folder.flatMap { try? FileManager.default.contentsOfDirectory(atPath: $0.path) } ?? []
+            if !left.isEmpty { self.trace?("left in the folder: \(left.prefix(20))") }
+            for name in left.sorted().prefix(1000) {
+                guard let folder = self.folder else { break }
+                let event = await self.readPage(folder.appendingPathComponent(name))
+                guard scan == self.scans else { return }
+                self.act(self.job?.handle(event) ?? [])
+            }
+            guard scan == self.scans else { return }
+            self.act(self.job?.handle(.completed(reason)) ?? [])
         }
-        act(job?.handle(.completed(error.map(Self.words))) ?? [])
+    }
+
+    /// `work` once the words before it are done, given the scan it belongs to (`scans` then): what it does is dropped when
+    /// another scan has begun since.
+    private func inTurn(_ work: @escaping @MainActor (Int) async -> Void) {
+        let before = reading, scan = scans
+        reading = Task { @MainActor in
+            await before?.value
+            await work(scan)
+        }
+    }
+
+    /// A page file, read off the main actor (up to this scan's `pageLimit`) and deleted.
+    private func readPage(_ url: URL) async -> ImageCaptureJob.Event {
+        let limit = pageLimit
+        return await Task.detached(priority: .userInitiated) { () -> ImageCaptureJob.Event in
+            let file = Self.pageFile(url, limit: limit)
+            try? FileManager.default.removeItem(at: url)
+            switch file {
+            case .page(let page): return .page(page)
+            case .tooLarge: return .pageTooLarge
+            case .unreadable: return .pageUnreadable
+            }
+        }.value
     }
 
     public func device(_ device: ICDevice, didCloseSessionWithError error: (any Error)?) {

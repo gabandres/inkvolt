@@ -62,4 +62,19 @@ struct ImageCaptureJobTests {
         let twice = [use.begin(), use.end(), use.begin(), use.end()]
         #expect(twice == [true, true, true, true])
     }
+
+    /// The pre-release review: a page file up to 1 GiB was read whole on the main thread, whatever the scan asked for. A page
+    /// may hold the request's pixels at 3 bytes each and 4 MiB more, never more than an eSCL page.
+    @Test func aPageFileMayHoldOnlyTheRequestsPixels() {
+        let slack = 4 << 20
+        // A letter page at 300 dpi: 2550 × 3300 pixels.
+        #expect(ImageCaptureJob.pageLimit(width: 8.5, height: 11, dpi: 300) == 2550 * 3300 * 3 + slack)
+        #expect(ImageCaptureJob.pageLimit(width: 8.5, height: 11, dpi: 300) < 30 << 20)
+        // A scanner's huge size or resolution: an eSCL page's limit at most.
+        #expect(ImageCaptureJob.pageLimit(width: 1e6, height: 1e6, dpi: 1200) == DeviceHttp.maxScanReplyBytes)
+        #expect(ImageCaptureJob.pageLimit(width: .infinity, height: 11, dpi: 300) == slack)
+        #expect(ImageCaptureJob.pageLimit(width: .nan, height: 11, dpi: 300) == slack)
+        #expect(ImageCaptureJob.pageLimit(width: 8.5, height: 11, dpi: 0) == slack)
+        #expect(ImageCaptureJob.pageLimit(width: -8.5, height: 11, dpi: 300) == slack)
+    }
 }

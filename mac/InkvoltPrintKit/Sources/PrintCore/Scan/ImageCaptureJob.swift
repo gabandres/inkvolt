@@ -33,6 +33,18 @@ public struct ImageCaptureJob: Sendable {
 
     public init() {}
 
+    /// The most bytes a page file of this scan may hold before it's refused unread (the pre-release review: any file up to
+    /// 1 GiB was read on the main thread): its area in inches at `dpi`, 3 bytes a pixel (RGB, as uncompressed as a JPEG gets)
+    /// and 4 MiB for headers and a JPEG's worst case, never more than an eSCL page's `DeviceHttp.maxScanReplyBytes`. A size or
+    /// resolution that isn't a positive number gives the 4 MiB alone.
+    public static func pageLimit(width: Double, height: Double, dpi: Double) -> Int {
+        let slack = 4 << 20, most = DeviceHttp.maxScanReplyBytes
+        guard width.isFinite, height.isFinite, dpi.isFinite, width > 0, height > 0, dpi > 0 else { return slack }
+        let bytes = (width * dpi) * (height * dpi) * 3 + Double(slack)
+        guard bytes.isFinite, bytes < Double(most) else { return most }
+        return Int(bytes.rounded(.up)) // bounded: under `most` above
+    }
+
     /// A unit is ready to scan once it says its size and at least one resolution.
     public static func unitReady(width: Double, height: Double, resolutions: Int) -> Bool {
         width.isFinite && height.isFinite && width > 0 && height > 0 && resolutions > 0
