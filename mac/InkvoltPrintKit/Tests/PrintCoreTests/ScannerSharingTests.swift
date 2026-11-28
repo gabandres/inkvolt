@@ -512,6 +512,18 @@ struct ScannerSharingTests {
 
         func read() -> [LocalNetwork] { now }
 
+        /// The router's hardware address per network address (a café's Wi-Fi on the home's subnet: another router).
+        private var routers: [String: String] = [:]
+        var router: [String: String] {
+            get { lock.withLock { routers } }
+            set { lock.withLock { routers = newValue } }
+        }
+
+        func place(of network: LocalNetwork) -> NetworkPlace {
+            let gateway = NetworkPlace.subnet(network).split(separator: "/")[0].replacingOccurrences(of: ".0", with: ".1")
+            return NetworkPlace(network, router: gateway, routerHardware: router[network.address] ?? "02:00:00:00:00:01")
+        }
+
         /// Who hears changes now (nothing is watched while no scanner is shared).
         var listeners: Int { lock.withLock { watchers.count } }
 
@@ -667,9 +679,12 @@ struct ScannerSharingTests {
         #expect(share.state == .noPrivateNetwork)
         #expect(host.started.isEmpty)
         #expect(share.text(Self.usb.id)
-            == "Not shared: this Mac isn't on a private network. Join your home or office Wi-Fi or Ethernet, and the scanner is shared at once.")
+            == "Not shared: this Mac isn't on a private network. On your home or office Wi-Fi or Ethernet, it's shared again where you turned it on.")
         nets.now = [Self.cafe, Self.home]
         await share.recheck()
+        #expect(share.state == .otherNetwork) // Mac: turned on where there was no private network, so none is trusted yet
+        #expect(host.started.isEmpty)
+        await share.share(Self.open(FakeScanner())) // Share on This Network
         #expect(host.listening)
         #expect(ads.adverts.last?.on == [Self.home])
         // The private network goes (the laptop moved to the café): the port closes.
@@ -686,12 +701,90 @@ struct ScannerSharingTests {
         await share.share(Self.open(FakeScanner()))
         nets.now = [Self.home, LocalNetwork("10.0.5.2", 24)]
         await share.recheck()
+        #expect(ads.adverts.count == 1) // Mac: a network it wasn't turned on in isn't served
+        #expect(ads.adverts.last?.on == [Self.home])
+        await share.share(Self.open(FakeScanner())) // turned on there too
         #expect(host.started.count == 1)
         #expect(host.listening)
         #expect(ads.adverts.count == 2)
         #expect(ads.adverts.first?.closer.closed == true)
         #expect(ads.adverts.last?.on.count == 2)
         await share.close()
+    }
+
+    // The pre-release review: a café's or hotel's Wi-Fi is RFC 1918 too (often the home's very subnet), so sharing kept on
+    // opened port 9780 and announced the scanner to everyone there.
+    @Test func aCafeOnTheHomesSubnetIsPausedUntilTurnedOnThere() async throws {
+        let (share, host, ads, nets, saved) = Self.makeSwitch()
+        await share.share(Self.open(FakeScanner()))
+        #expect(host.listening)
+        #expect(saved.all.last?.places == [nets.place(of: Self.home)])
+        // The laptop goes to a café: the same addresses, another router.
+        nets.router = [Self.home.address: "0a:11:22:33:44:55"]
+        await share.recheck()
+        #expect(share.state == .otherNetwork)
+        #expect(!host.listening)
+        #expect(!ads.announced)
+        let card = share.card(connected: Self.usb, known: nil)
+        #expect(card.isOn && card.canShareHere)
+        #expect(card.text.hasPrefix("Paused: this Mac is on a network you didn't turn sharing on in"))
+        // Back home: shared again by itself.
+        nets.router = [:]
+        await share.recheck()
+        #expect(share.state == .on)
+        #expect(host.listening)
+        // At the café again, the person turns it on there: both are remembered.
+        nets.router = [Self.home.address: "0a:11:22:33:44:55"]
+        await share.recheck()
+        await share.share(Self.open(FakeScanner()))
+        #expect(share.state == .on)
+        #expect(saved.all.last?.places?.count == 2)
+        nets.router = [:]
+        await share.recheck()
+        #expect(share.state == .on)
+        // Turned off, it forgets where: turned on again, it's only where it's turned on then.
+        await share.stop()
+        #expect(saved.all.last?.places == nil)
+        await share.close()
+    }
+
+    @Test func aChoiceKeptBeforeNetworksWereRememberedSharesNowhereUntilTurnedOnAgain() async {
+        // A state file from 1.4 has the scanner but no networks: it starts paused, never on whatever network the Mac is on.
+        let (share, host, ads, _, _) = Self.makeSwitch(ScannerShareChoice(deviceId: Self.usb.id, name: Self.usb.name, uuid: UUID()))
+        await share.offer(Self.usb.id, Self.open(FakeScanner()))
+        #expect(share.state == .otherNetwork)
+        #expect(host.started.isEmpty)
+        #expect(ads.adverts.isEmpty)
+        await share.share(Self.open(FakeScanner()))
+        #expect(host.listening)
+        await share.close()
+    }
+
+    @Test func aNetworkIsKnownAgainByItsSubnetRouterAndWifi() {
+        let home = NetworkPlace(Self.home, router: "192.168.1.1", routerHardware: "2:0:0:0:0:A1", wifi: "486f6d65")
+        #expect(home.subnet == "192.168.1.0/24")
+        #expect(home.routerHardware == "02:00:00:00:00:a1")
+        #expect(NetworkPlace(LocalNetwork("192.168.1.77", 24), router: "192.168.1.1", routerHardware: "02:00:00:00:00:A1", wifi: "486f6d65")
+            .isSame(as: home))
+        // Another router, another router address, another subnet, another Wi-Fi: not the same.
+        #expect(!NetworkPlace(Self.home, router: "192.168.1.1", routerHardware: "02:00:00:00:00:a2").isSame(as: home))
+        #expect(!NetworkPlace(Self.home, router: "192.168.1.254", routerHardware: "02:00:00:00:00:a1").isSame(as: home))
+        #expect(!NetworkPlace(LocalNetwork("192.168.1.20", 16), router: "192.168.1.1", routerHardware: "02:00:00:00:00:a1").isSame(as: home))
+        #expect(!NetworkPlace(Self.home, router: "192.168.1.1", routerHardware: "02:00:00:00:00:a1", wifi: "436166e9").isSame(as: home))
+        // The router's hardware address remembered but unread now: paused, not shared.
+        #expect(!NetworkPlace(Self.home, router: "192.168.1.1").isSame(as: home))
+        // Wi-Fi's name unread now (location access withdrawn): the router decides.
+        #expect(NetworkPlace(Self.home, router: "192.168.1.1", routerHardware: "02:00:00:00:00:a1").isSame(as: home))
+        // A hardware address that isn't one is no hardware address.
+        #expect(NetworkPlace(Self.home, routerHardware: "00:00:00:00:00:00").routerHardware == nil)
+        #expect(NetworkPlace(Self.home, routerHardware: "zz:00:00:00:00:01").routerHardware == nil)
+        #expect(NetworkPlace(Self.home, router: "not an address").router == nil)
+        // At most `kept`, the newest last, each once.
+        let many = (0..<20).map { NetworkPlace(LocalNetwork("10.0.\($0).2", 24), router: "10.0.\($0).1") }
+        let kept = NetworkPlace.adding(many + [many[19]], to: [])
+        #expect(kept.count == NetworkPlace.kept)
+        #expect(kept.last == many[19])
+        #expect(Set(kept).count == kept.count)
     }
 
     @Test func sharingIsFreeNoKeyIsAsked() async {
@@ -706,7 +799,8 @@ struct ScannerSharingTests {
     }
 
     @Test func keptOnItWaitsForTheScannerAndStopsWhenItGoes() async {
-        let (share, host, _, _, _) = Self.makeSwitch(ScannerShareChoice(deviceId: Self.usb.id, name: Self.usb.name, uuid: UUID()))
+        let (share, host, _, _, _) = Self.makeSwitch(ScannerShareChoice(deviceId: Self.usb.id, name: Self.usb.name, uuid: UUID(),
+                                                                         places: [FakeNetworks().place(of: Self.home)]))
         #expect(share.isOn)
         await share.recheck()
         #expect(share.state == .waitingForScanner)

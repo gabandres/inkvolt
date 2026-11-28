@@ -10062,6 +10062,16 @@
           }
         }
       }
+    },
+    "Share on This Network": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compartir en esta red"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

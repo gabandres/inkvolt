@@ -21,6 +21,10 @@ struct ScannerShareCard: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                if card.canShareHere {
+                    // Paused on a network it wasn't turned on in: shared here only when the person says so.
+                    Button("Share on This Network") { app.setSharing(true, scanner) }
+                }
                 if let fingerprint = card.fingerprint {
                     Text("Certificate fingerprint (SHA-256), to compare where a device shows it:")
                         .font(.caption)

@@ -3,16 +3,20 @@ import Foundation
 /// What the person chose (the app keeps it with its state): which scanner is shared, if any. Off by default (the Windows
 /// Core's `ScannerShareChoice`). `deviceId`: the shared scanner's ImageCaptureCore id (`SystemScanner.id`), nil: nothing
 /// shared; `name`: its name, for the card while it isn't connected; `uuid`: the UUID it is announced with, made once and
-/// kept, so clients know it again after a restart.
+/// kept, so clients know it again after a restart; `places`: the networks the person turned it on in (**Mac difference**,
+/// `NetworkPlace`), the only ones it's shared on; nil or empty (a choice kept before them): shared nowhere until turned on
+/// again.
 public struct ScannerShareChoice: Equatable, Sendable, Codable {
     public var deviceId: String?
     public var name: String?
     public var uuid: UUID?
+    public var places: [NetworkPlace]?
 
-    public init(deviceId: String? = nil, name: String? = nil, uuid: UUID? = nil) {
+    public init(deviceId: String? = nil, name: String? = nil, uuid: UUID? = nil, places: [NetworkPlace]? = nil) {
         self.deviceId = deviceId
         self.name = name
         self.uuid = uuid
+        self.places = places
     }
 }
 
@@ -24,6 +28,9 @@ public enum ShareState: Equatable, Sendable {
     case waitingForScanner
     /// Turned on, no private network: nothing listens until there is one.
     case noPrivateNetwork
+    /// Turned on, but only on other networks than this Mac is on now (a café's, a hotel's): paused, nothing listens or is
+    /// announced until the person turns it on here too (`ShareCard.canShareHere`).
+    case otherNetwork
     /// Opening the port.
     case starting
     /// Listening and announced.
@@ -59,12 +66,14 @@ public protocol ShareHost: Sendable {
 }
 
 /// What the Scan tab's card shows for one entry's scanner. `deviceId`: the scanner the card is about, nil when it shows
-/// nothing; `fingerprint`: the certificate's fingerprint, 16 bytes a line, while this scanner is shared and listening.
+/// nothing; `fingerprint`: the certificate's fingerprint, 16 bytes a line, while this scanner is shared and listening;
+/// `canShareHere`: it's paused on this network (`ShareState.otherNetwork`), and Share on This Network turns it on here too.
 public struct ShareCard: Equatable, Sendable {
     public var deviceId: String?
     public var isOn: Bool
     public var text: String
     public var fingerprint: String?
+    public var canShareHere = false
 
     public static let hidden = ShareCard(deviceId: nil, isOn: false, text: "", fingerprint: nil)
 
@@ -108,6 +117,7 @@ public struct ShareEnvironment: Sendable {
     private struct NoNetworks: ShareNetworks {
         func read() -> [LocalNetwork] { [] }
         func watch(_ changed: @escaping @Sendable () -> Void) -> any ShareWatch { Nothing() }
+        func place(of network: LocalNetwork) -> NetworkPlace { NetworkPlace(network) }
     }
 
     private struct NoAdvertiser: ShareAdvertiser {
@@ -120,7 +130,8 @@ public struct ShareEnvironment: Sendable {
 }
 
 /// A scanner of this Mac shared on the network as an eSCL scanner (print/ROADMAP.md 3.1, free since 2026-11-22; the
-/// Windows Core's `ScannerShare`): one scanner at a time, off by default, only on private networks, only while the app
+/// Windows Core's `ScannerShare`): one scanner at a time, off by default, only on the private networks it was turned on in
+/// (`NetworkPlace`; paused on others, `ShareState.otherNetwork`), only while the app
 /// runs. Turned on, it listens over HTTPS on `defaultPort` with the app's self-signed certificate (`fingerprint`), serves
 /// the scanner through a `SharedScanner` and announces it as `_uscans._tcp`; it stops listening the moment it's turned off,
 /// the scanner goes, the last private network goes, or the app closes. The app hands it the shared scanner when it's
@@ -203,7 +214,9 @@ public final class ScannerShare: @unchecked Sendable {
         case .off: return Self.offText
         case .waitingForScanner: return loc("Shared once the scanner answers. Check that it's on and plugged in.")
         case .noPrivateNetwork:
-            return loc("Not shared: this Mac isn't on a private network. Join your home or office Wi-Fi or Ethernet, and the scanner is shared at once.")
+            return loc("Not shared: this Mac isn't on a private network. On your home or office Wi-Fi or Ethernet, it's shared again where you turned it on.")
+        case .otherNetwork:
+            return loc("Paused: this Mac is on a network you didn't turn sharing on in, so nobody here can reach the scanner. On a network you trust, choose Share on This Network.")
         case .starting: return loc("Starting…")
         case .on:
             let line = env.loopbackOnly
@@ -232,7 +245,8 @@ public final class ScannerShare: @unchecked Sendable {
         let on = isShared(device.id)
         var shown: String?
         if on, state == .on, let f = fingerprint { shown = f.count > 48 ? String(f.prefix(48)) + "\n" + String(f.dropFirst(48)) : f }
-        return ShareCard(deviceId: device.id, isOn: on, text: text(device.id), fingerprint: shown)
+        return ShareCard(deviceId: device.id, isOn: on, text: text(device.id), fingerprint: shown,
+                         canShareHere: on && state == .otherNetwork && connected != nil)
     }
 
     /// Turns sharing on for `scanner`, the entry's connected scanner; nothing for one that isn't connected or that macOS
@@ -248,12 +262,15 @@ public final class ScannerShare: @unchecked Sendable {
         if deviceIds.compactMap({ $0 }).contains(where: isShared) { await stop() }
     }
 
-    /// Shares `scanner` (instead of any other): it listens once a private network and the scanner allow.
+    /// Shares `scanner` (instead of any other) on the private networks this Mac is on now, besides those it was turned on in
+    /// before: it listens once the scanner allows, and only on those networks (`NetworkPlace`).
     public func share(_ scanner: ConnectedScanner) async {
         await call {
             let device = scanner.scanner
             let old = self.choice
-            let choice = ScannerShareChoice(deviceId: device.id, name: device.name, uuid: old.uuid ?? UUID())
+            let here = self.env.loopbackOnly ? [] : SharePeers.served(self.env.networks.read()).map(self.env.networks.place(of:))
+            let choice = ScannerShareChoice(deviceId: device.id, name: device.name, uuid: old.uuid ?? UUID(),
+                                            places: NetworkPlace.adding(here, to: old.places ?? []))
             if old.deviceId?.caseInsensitiveCompare(device.id) != .orderedSame { await self.stopRunning() }
             self.lock.withLock {
                 self.current = choice
@@ -271,6 +288,7 @@ public final class ScannerShare: @unchecked Sendable {
             let choice = self.lock.withLock { () -> ScannerShareChoice in
                 self.current.deviceId = nil
                 self.current.name = nil
+                self.current.places = nil // turned on again, it's where it's turned on then
                 self.scanner = nil
                 return self.current
             }
@@ -366,6 +384,18 @@ public final class ScannerShare: @unchecked Sendable {
             if served.isEmpty {
                 await stopRunning()
                 setState(.noPrivateNetwork)
+                return
+            }
+            // Only the networks the person turned it on in: any other (a café's 192.168.x Wi-Fi) is paused.
+            let places = choice.places ?? []
+            served = served.filter { n in
+                let here = env.networks.place(of: n)
+                return places.contains { here.isSame(as: $0) }
+            }
+            if served.isEmpty {
+                if running != nil { log("Scanner sharing paused: not a network it was turned on in.") }
+                await stopRunning()
+                setState(.otherNetwork)
                 return
             }
         }

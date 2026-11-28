@@ -47,6 +47,12 @@ extension Report {
         try? await Task.sleep(for: .seconds(6))
         let all = browse.allDevices
         var lines = ["share scanner: ICC lists \(all.count) scanner(s)"]
+        // What tells this network from a café's with the same addresses (NetworkPlace), read from the sandbox: found or not,
+        // never the values.
+        for network in SharePeers.served(SystemShareNetworks().read()).prefix(4) {
+            let place = SystemShareNetworks().place(of: network)
+            lines.append("  network place: /\(network.prefixLength), router \(place.router != nil), its hardware address \(place.routerHardware != nil), Wi-Fi name \(place.wifi != nil) (location \(WifiLocation.allowed ? "allowed" : "not allowed"))")
+        }
         guard let (s, device) = all.first(where: { name == nil || $0.scanner.name.localizedCaseInsensitiveContains(name ?? "") }) else {
             return lines + ["  none named \(name ?? "")"]
         }

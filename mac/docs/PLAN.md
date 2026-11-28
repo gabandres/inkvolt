@@ -206,7 +206,16 @@ mac/InkvoltPrintKit --build-system native`.
   a maker's network scanner isn't offered either); black and white isn't offered (the Mac scans color or grey: 409);
   ScannerStatus never says the feeder's state (ImageCaptureCore tells it only with the feeder selected); peers are the
   phone scan's (`SharePeers` = `PhonePeers`: IPv4 on Ethernet and Wi-Fi networks with a private address, no IPv6, no
-  Private/Public setting, "join your home or office network" for Windows' "set it to Private"); the certificate is the
+  Private/Public setting, "join your home or office network" for Windows' "set it to Private"), and of those only the
+  networks the person turned sharing on in (the pre-release review of 1.4: a café's or hotel's Wi-Fi is RFC 1918 too, often
+  the home's very subnet, and kept on it opened port 9780 and announced the scanner there): `ScannerShareChoice.places`
+  keeps up to 8 `NetworkPlace`s (subnet, router address, the router's hardware address from the routing table's
+  neighbours, the Wi-Fi name only when location access was already given; PrintMac's `NetworkPlaces`), a network not among
+  them is paused (`ShareState.otherNetwork`: port closed, nothing announced, the card says so with Share on This Network),
+  a router's hardware address remembered but unread counts as another network, turning sharing off forgets them, and a
+  choice kept by 1.4 (no places) is paused until turned on again (`ScannerSharingTests`'
+  `aCafeOnTheHomesSubnetIsPausedUntilTurnedOnThere`; Windows trusts its own Private setting, which the person chose per
+  network); the certificate is the
   phone scan's, kept in the app's keychain with its subject ("Inkvolt Print phone scan"; Windows': "Inkvolt Print scanner
   sharing", one for both there too: macOS labels a certificate item by its subject, which the lookup goes by); the
   announcement is registered on every interface (`LocalNetwork` has no interface; the server still lets in only the
