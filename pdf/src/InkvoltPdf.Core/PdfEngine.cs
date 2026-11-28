@@ -146,16 +146,55 @@ public sealed partial class PdfEngine : IDisposable
     }
 
     /// <exception cref="PasswordRequiredException">The document is encrypted and the password is missing or wrong.</exception>
-    public static PdfEngine Open(byte[] data, InputFileTypes type, string? password) =>
-        Open(c => new MuPDFDocument(c, data, type), password, SourceFor(data, null, type, password));
+    public static PdfEngine Open(byte[] data, InputFileTypes type, string? password)
+    {
+        CheckArchive(type, () => new MemoryStream(data, writable: false));
+        return Open(c => new MuPDFDocument(c, data, type), password, SourceFor(data, null, type, password));
+    }
 
     /// <summary>
     /// Opens a file in place: MuPDF reads it as pages need it, so a big file isn't read into memory. The file stays
     /// open (readable by others, but not replaceable) until the engine is disposed.
     /// </summary>
     /// <exception cref="PasswordRequiredException">The document is encrypted and the password is missing or wrong.</exception>
-    public static PdfEngine OpenFile(string path, InputFileTypes type, string? password) =>
-        Open(c => new MuPDFDocument(c, path), password, SourceFor(null, path, type, password));
+    public static PdfEngine OpenFile(string path, InputFileTypes type, string? password)
+    {
+        CheckArchive(type, () => File.OpenRead(path));
+        return Open(c => new MuPDFDocument(c, path), password, SourceFor(null, path, type, password));
+    }
+
+    /// <summary>Most one entry of a zipped format (EPUB, CBZ, XPS) may say it unpacks to (<see cref="CheckArchive"/>).</summary>
+    internal const long MaxArchiveEntryBytes = 1L << 30;
+    /// <summary>Most an EPUB's entries may say they unpack to together: it is laid out whole as it opens.</summary>
+    internal const long MaxEpubBytes = 2L << 30;
+
+    /// <summary>
+    /// A zipped format whose entries say they unpack to more than MuPDF should take (the Mac's pre-release review): MuPDF
+    /// allocates each entry at the size its zip directory says and inflates all of it, and opening an EPUB lays out the
+    /// whole book (every chapter and picture), with no cookie to stop it or Cancel. Refused before MuPDF reads the file: an
+    /// entry over <see cref="MaxArchiveEntryBytes"/>, or an EPUB's entries together over <see cref="MaxEpubBytes"/>. A file
+    /// .NET can't read as a zip is left to MuPDF, which says what it is.
+    /// </summary>
+    /// <exception cref="InsufficientMemoryException">The file asks for too much memory.</exception>
+    internal static void CheckArchive(InputFileTypes type, Func<Stream> open)
+    {
+        if (type is not (InputFileTypes.EPUB or InputFileTypes.CBZ or InputFileTypes.XPS)) return;
+        long total = 0;
+        try
+        {
+            using var zip = new System.IO.Compression.ZipArchive(open(), System.IO.Compression.ZipArchiveMode.Read, leaveOpen: false);
+            foreach (var entry in zip.Entries)
+            {
+                total += entry.Length;
+                if (entry.Length > MaxArchiveEntryBytes || type == InputFileTypes.EPUB && total > MaxEpubBytes)
+                    throw new InsufficientMemoryException(PdfStrings.Doc_NotEnoughMemory);
+            }
+        }
+        catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            // Not a zip .NET reads (or not readable here): MuPDF opens it or says why not.
+        }
+    }
 
     /// <summary>Opens a document from memory that stays valid as long as the engine: a find worker's view of the parent's bytes.</summary>
     internal static PdfEngine OpenMemory(IntPtr data, long length, InputFileTypes type) =>
@@ -192,6 +231,7 @@ public sealed partial class PdfEngine : IDisposable
     /// </summary>
     public static PdfEngine? OpenPreview(string path)
     {
+        CheckArchive(TypeFromPath(path), () => File.OpenRead(path));
         var ctx = new MuPDFContext(32 * 1024 * 1024);
         MuPDFDocument? doc = null;
         try

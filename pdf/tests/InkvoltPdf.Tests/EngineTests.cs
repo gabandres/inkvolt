@@ -5,6 +5,53 @@ namespace InkvoltPdf.Tests;
 
 public class EngineTests
 {
+    /// <summary>
+    /// The Mac's pre-release review, checked here: MuPDF opens an EPUB, CBZ or XPS with no cookie, allocating each zip entry
+    /// at the size its directory says and laying an EPUB out whole, so a zip bomb's entry was inflated whole. An entry that
+    /// says it unpacks to more than a gigabyte is refused before MuPDF reads the file; an ordinary comic book opens.
+    /// </summary>
+    [Fact]
+    public void AZipEntryClaimingGigabytesIsRefusedBeforeMuPdfReadsIt()
+    {
+        static byte[] Zip(params (string Name, byte[] Data)[] entries)
+        {
+            using var memory = new MemoryStream();
+            using (var zip = new System.IO.Compression.ZipArchive(memory, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
+                foreach (var (name, data) in entries)
+                    using (var s = zip.CreateEntry(name).Open()) s.Write(data);
+            return memory.ToArray();
+        }
+        // The uncompressed size of entry `name`, in its local header (offset 22) and the central directory (offset 24).
+        static void Claim(byte[] zip, string name, uint size)
+        {
+            var nameBytes = System.Text.Encoding.ASCII.GetBytes(name);
+            foreach (var (signature, nameAt, lengthAt, sizeAt) in new[] { (0x04034B50u, 30, 26, 22), (0x02014B50u, 46, 28, 24) })
+                for (var i = 0; i + nameAt + nameBytes.Length <= zip.Length; i++)
+                    if (BitConverter.ToUInt32(zip, i) == signature && BitConverter.ToUInt16(zip, i + lengthAt) == nameBytes.Length
+                        && zip.AsSpan(i + nameAt, nameBytes.Length).SequenceEqual(nameBytes))
+                        BitConverter.TryWriteBytes(zip.AsSpan(i + sizeAt), size);
+        }
+        var red = TestImages.Png(40, 20, (_, _) => (220, 20, 20, 255));
+        using (var comic = PdfEngine.Open(Zip(("001.png", red), ("002.png", red)), InputFileTypes.CBZ, null))
+            Assert.Equal(2, comic.PageCount);
+
+        var container = """<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="book.opf" media-type="application/oebps-package+xml"/></rootfiles></container>"""u8.ToArray();
+        var bomb = Zip(("mimetype", "application/epub+zip"u8.ToArray()), ("META-INF/container.xml", container));
+        Claim(bomb, "META-INF/container.xml", 2_000_000_000);
+        Assert.Throws<InsufficientMemoryException>(() => PdfEngine.Open(bomb, InputFileTypes.EPUB, null));
+        var path = Path.Combine(Path.GetTempPath(), $"inkvolt-bomb-{Guid.NewGuid():N}.epub");
+        File.WriteAllBytes(path, bomb);
+        try
+        {
+            Assert.Throws<InsufficientMemoryException>(() => PdfEngine.OpenFile(path, InputFileTypes.EPUB, null));
+            Assert.Throws<InsufficientMemoryException>(() => PdfEngine.OpenPreview(path));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     [Fact]
     public void AFileMuPdfCantOpenDoesntCrashTheProcessLater()
     {
