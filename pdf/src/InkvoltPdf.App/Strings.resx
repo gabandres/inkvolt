@@ -295,6 +295,9 @@
   <data name="Share_CantBody" xml:space="preserve">
     <value>Windows' Share isn't available here. Save the file and attach it from its folder (File › Show in Folder).</value>
   </data>
+  <data name="Share_CantReadBody" xml:space="preserve">
+    <value>Windows' Share couldn't open the file where it is; its folder's path may be too long. Save a copy in a shorter folder (File › Save As…) and share that, or attach it from its folder (File › Show in Folder).</value>
+  </data>
   <data name="Cmd_Exit" xml:space="preserve">
     <value>E_xit</value>
   </data>

@@ -68,24 +68,32 @@ internal static class ShareActions
     private static async Task ShowSheet(MainWindow host, string path)
     {
         var name = Path.GetFileName(path);
-        try
+        var hwnd = new WindowInteropHelper(host).Handle;
+        DataTransferManager? manager = null;
+        StorageFile? offered = null;
+        void OnRequested(DataTransferManager sender, DataRequestedEventArgs e)
         {
-            var file = await StorageFile.GetFileFromPathAsync(path);
-            var hwnd = new WindowInteropHelper(host).Handle;
-            var manager = DataTransferManagerInterop.GetForWindow(hwnd);
-            void OnRequested(DataTransferManager sender, DataRequestedEventArgs e)
+            sender.DataRequested -= OnRequested; // one request per Share…
+            e.Request.Data.Properties.Title = name;
+            e.Request.Data.SetStorageItems([offered!]);
+        }
+        // Every failure is caught (ShareSheet): this task is discarded, so one escaping it would leave Share… doing nothing.
+        var result = await ShareSheet.ShowAsync(
+            async () => await StorageFile.GetFileFromPathAsync(path), // ArgumentException for a path too long for it, or \\?\
+            file =>
             {
-                sender.DataRequested -= OnRequested; // one request per Share…
-                e.Request.Data.Properties.Title = name;
-                e.Request.Data.SetStorageItems([file]);
-            }
-            manager.DataRequested += OnRequested;
-            DataTransferManagerInterop.ShowShareUIForWindow(hwnd);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Runtime.InteropServices.COMException)
-        {
-            Log.Write($"Share failed: {ex.Message}");
-            Prompt.Error(host, Loc.Format(Strings.Share_CantTitle, name), Strings.Share_CantBody);
-        }
+                offered = file;
+                manager = DataTransferManagerInterop.GetForWindow(hwnd);
+                manager.DataRequested += OnRequested;
+            },
+            () =>
+            {
+                if (manager is not null) manager.DataRequested -= OnRequested;
+            },
+            () => DataTransferManagerInterop.ShowShareUIForWindow(hwnd));
+        if (result.Outcome == ShareSheetOutcome.Shown) return;
+        Log.Write($"Share failed ({result.Outcome}): {result.Error}");
+        Prompt.Error(host, Loc.Format(Strings.Share_CantTitle, name),
+            result.Outcome == ShareSheetOutcome.FileUnreadable ? Strings.Share_CantReadBody : Strings.Share_CantBody);
     }
 }

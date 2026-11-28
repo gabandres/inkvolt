@@ -48,4 +48,32 @@ public class DocumentShareTests
             Directory.Delete(temp, true);
         }
     }
+
+    /// <summary>
+    /// The pre-release review: Windows' StorageFile throws ArgumentException for a path too long for it (or \\?\), which
+    /// escaped the discarded Share… task, so Share… did nothing; a sheet that failed to show left its request handler
+    /// subscribed. Every failure is an outcome, and the offer is withdrawn.
+    /// </summary>
+    [Fact]
+    public async Task AFileWindowsCantOpenOrASheetThatFailsIsSaidAndWithdrawn()
+    {
+        var offered = 0;
+        var withdrawn = 0;
+        var unreadable = await ShareSheet.ShowAsync<string>(() => throw new ArgumentException("path"), _ => offered++, () => withdrawn++, () => { });
+        Assert.Equal(ShareSheetOutcome.FileUnreadable, unreadable.Outcome);
+        Assert.IsType<ArgumentException>(unreadable.Error);
+        Assert.Equal((0, 0), (offered, withdrawn));
+
+        var notShown = await ShareSheet.ShowAsync(() => Task.FromResult("f"), _ => offered++, () => withdrawn++,
+            () => throw new System.Runtime.InteropServices.COMException("no sheet"));
+        Assert.Equal(ShareSheetOutcome.Unavailable, notShown.Outcome);
+        Assert.Equal((1, 1), (offered, withdrawn));
+
+        var offerFailed = await ShareSheet.ShowAsync<string>(() => Task.FromResult("f"), _ => throw new InvalidOperationException(), () => throw new InvalidOperationException(), () => { });
+        Assert.Equal(ShareSheetOutcome.Unavailable, offerFailed.Outcome); // a withdraw that fails too is still caught
+
+        var shown = await ShareSheet.ShowAsync(() => Task.FromResult("f"), f => Assert.Equal("f", f), () => withdrawn++, () => { });
+        Assert.Equal(new ShareSheetResult(ShareSheetOutcome.Shown), shown);
+        Assert.Equal(1, withdrawn); // the handler removes itself when the sheet asks
+    }
 }
