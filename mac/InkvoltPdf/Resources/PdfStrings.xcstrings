@@ -27731,6 +27731,28 @@
           }
         }
       }
+    },
+    "Previous View": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vista anterior"
+          }
+        }
+      }
+    },
+    "Next View": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vista siguiente"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

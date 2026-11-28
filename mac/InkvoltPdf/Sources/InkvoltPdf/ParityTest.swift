@@ -44,6 +44,7 @@ struct ParityTest {
         defer { Self.isActive = false }
         await exportImages()
         await showInFinderAndCloseAll()
+        await history()
         Report.write(lines.joined(separator: "\n"))
         Report.write("parity: \(failures == 0 ? "PASS" : "FAIL (\(failures))")")
     }
@@ -103,6 +104,49 @@ struct ParityTest {
         let all = await DocumentWindowController.closeEach([b, c])
         check(all && !open(b) && !open(c), "close all: Don't Save closed the others (\(a.closeQuestions + b.closeQuestions + c.closeQuestions) questions)")
         controller.window?.makeKeyAndOrderFront(nil)
+        await settle()
+    }
+
+    // MARK: Previous View, Next View
+
+    /// Chooses a menu item as a person does: validated, then its action sent along the responder chain.
+    @discardableResult
+    private func choose(_ title: String) -> Bool {
+        guard let item = menuItem(title), let action = item.action else { return false }
+        let enabled = controller.validateMenuItem(item)
+        if enabled { NSApp.sendAction(action, to: controller, from: item) }
+        return enabled
+    }
+
+    private mutating func history() async {
+        let pages = controller.pages
+        let back = menuItem(loc("Previous View")), forward = menuItem(loc("Next View"))
+        check(back?.keyEquivalent == "[" && forward?.keyEquivalent == "]" && back?.keyEquivalentModifierMask == .command,
+              "history: Go › Previous View ⌘[ and Next View ⌘]")
+        controller.go(0, record: false)
+        pages.history.clear()
+        await settle()
+        check(!choose(loc("Previous View")), "history: nothing to go back to at first")
+        controller.go(1) // a jump (Go to Page, a link, a bookmark)
+        await settle()
+        controller.nextPage(nil) // turning a page records nothing
+        await settle()
+        let jumped = pages.currentPage
+        check(choose(loc("Previous View")), "history: Previous View enabled after a jump")
+        await settle()
+        check(pages.currentPage == 0, "history: Previous View returned to page 1 (on page \(pages.currentPage + 1))")
+        check(choose(loc("Next View")), "history: Next View enabled after going back")
+        await settle()
+        check(pages.currentPage == jumped, "history: Next View came back to page \(jumped + 1) (on page \(pages.currentPage + 1))")
+        check(!pages.history.canGoForward && pages.history.canGoBack, "history: nothing ahead, the jump still behind")
+        let menu = pages.menu(for: NSEvent.mouseEvent(with: .rightMouseDown, location: .zero, modifierFlags: [], timestamp: 0,
+                                                     windowNumber: controller.window?.windowNumber ?? 0, context: nil, eventNumber: 0,
+                                                     clickCount: 1, pressure: 1)!)
+        if pages.selectedText == nil {
+            check(menu?.items.contains { $0.action == #selector(DocumentWindowController.previousView(_:)) } == true,
+                  "history: the pages' menu has Previous View and Next View")
+        }
+        controller.go(0, record: false)
         await settle()
     }
 }

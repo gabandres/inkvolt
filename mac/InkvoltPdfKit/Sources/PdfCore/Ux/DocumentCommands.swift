@@ -70,6 +70,10 @@ public enum Requirement: String, Sendable, CaseIterable {
     case fieldsToSpace
     /// The document has guides (roadmap 4.19's Clear Guides).
     case guides
+    /// The pane in use has a place to go back to (Go › Previous View).
+    case canGoBack
+    /// …and one to go forward to (Go › Next View).
+    case canGoForward
 }
 
 /// The small state of a document window that decides which commands can run.
@@ -96,6 +100,8 @@ public struct DocumentState: Sendable, Equatable {
     /// The fields selected in Prepare Form (0 outside it).
     public var designSelected = 0
     public var hasGuides = false
+    public var canGoBack = false
+    public var canGoForward = false
 
     public init() {}
 
@@ -123,6 +129,8 @@ public struct DocumentState: Sendable, Equatable {
         case .fieldsToArrange: designSelected >= 2
         case .fieldsToSpace: designSelected >= 3
         case .guides: hasGuides
+        case .canGoBack: canGoBack
+        case .canGoForward: canGoForward
         }
     }
 }
@@ -402,6 +410,10 @@ public enum DocumentCommands {
         c("First Page", "firstPage:", SpecialKey.home, []),
         c("Last Page", "lastPage:", SpecialKey.end, []),
         c("Go to Page…", "goToPage:", "g", [.command, .option], needs: [.pages]),
+        // Back and forward through jumps (Windows: Previous View and Next View, Alt+Left and Alt+Right; ⌘[ and ⌘] here,
+        // as Safari's and Preview's Back and Forward).
+        c("Previous View", "previousView:", "[", needs: [.canGoBack]),
+        c("Next View", "nextView:", "]", needs: [.canGoForward]),
         sep,
         c("Next Comment", "nextComment:", "]", [.command, .option]),
         c("Previous Comment", "previousComment:", "[", [.command, .option]),

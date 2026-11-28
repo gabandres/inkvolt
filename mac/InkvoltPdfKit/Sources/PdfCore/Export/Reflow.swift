@@ -167,13 +167,14 @@ public enum Reflow {
         "NavPane", "MoveToNewWindow", "Organize",
     ]
 
-    /// The Mac's menu actions for `commands` (those it has: no Back or Forward there), with Page Setup (Windows' Print
-    /// with options), Share and Dark Pages, which the Mac has as commands. Copy and Select All are the web view's own.
+    /// The Mac's menu actions for `commands` (all of them, Back and Forward being Go › Previous View and Next View), with
+    /// Page Setup (Windows' Print with options), Share and Dark Pages, which the Mac has as commands. Copy and Select All
+    /// are the web view's own.
     public static let macActions: Set<String> = [
         "toggleReflow:", "saveDocument:", "saveDocumentAs:", "showInFinder:", "performClose:", "closeAll:", "reloadFromDisk:",
         "printDocument:", "runPageLayout:",
         "exportWord:", "exportExcel:", "exportText:", "exportPowerPoint:", "exportHtml:", "exportImages:", "showDocumentProperties:",
-        "zoomIn:", "zoomOut:", "actualSize:", "firstPage:", "previousPage:", "nextPage:", "lastPage:", "goToPage:",
+        "zoomIn:", "zoomOut:", "actualSize:", "firstPage:", "previousPage:", "nextPage:", "lastPage:", "goToPage:", "previousView:", "nextView:",
         "toggleSidebar:", "moveTabToNewWindow:", "toggleOrganizer:", "shareDocument:", "toggleDarkPages:",
     ]
 

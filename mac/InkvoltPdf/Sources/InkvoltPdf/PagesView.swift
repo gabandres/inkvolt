@@ -43,6 +43,8 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
     let renderer: PageRenderer
     /// Each page's frame in this view.
     private(set) var pageRects: [NSRect] = []
+    /// Go › Previous View and Next View: this pane's jumps (Windows keeps them per page viewer, the split's too).
+    var history = NavigationHistory()
     weak var editor: DocumentEditor?
     weak var host: PagesHost?
     /// The form's fields and Edit Text & Images (the window controller owns them).
@@ -1837,9 +1839,12 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         }
         if let caret {
             menu.addItem(insertTextItem(caret))
-            return menu
+            menu.addItem(.separator())
         }
-        return nil
+        // Back and forward through jumps, as Windows' page menu (validated by the window's command table).
+        menu.addItem(withTitle: loc("Previous View"), action: #selector(DocumentWindowController.previousView(_:)), keyEquivalent: "")
+        menu.addItem(withTitle: loc("Next View"), action: #selector(DocumentWindowController.nextView(_:)), keyEquivalent: "")
+        return menu
     }
 
     private func linkAt(_ page: Int, _ p: PointD) -> String? {
@@ -2085,6 +2090,21 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         scrollTo(y: fromBottom ? Double(frame.height) : 0)
         requestVisible()
         pageShown()
+    }
+
+    /// Where the view is: the current page and how far the top of what is shown is below its top (for the history).
+    var place: ViewPlace {
+        let page = currentPage
+        guard page < pageRects.count else { return ViewPlace(page: page, y: 0) }
+        return ViewPlace(page: page, y: Double(visibleRect.minY - pageRects[page].minY))
+    }
+
+    /// Shows `place` again: its page (Single Page turns to it), its top at the same distance below the page's.
+    func show(_ place: ViewPlace) {
+        guard place.page >= 0, place.page < engine.pageCount else { return }
+        prepareToShow(place.page)
+        guard place.page < pageRects.count else { return }
+        scrollTo(y: Double(pageRects[place.page].minY) + place.y)
     }
 
     /// Scrolls so `y` (this view's coordinates) is at the top of what is shown.

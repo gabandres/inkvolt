@@ -213,7 +213,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         split.addSplitViewItem(NSSplitViewItem(viewController: content))
         split.addSplitViewItem(design.panelItem)
         split.addSplitViewItem(readingOrder.panelItem)
-        sidebar.onGo = { [weak self] page, y in self?.go(page, targetY: y) }
+        sidebar.onGo = { [weak self] page, y, record in self?.go(page, targetY: y, record: record) }
         sidebar.dragSourceId = pdf.recoveryId
         sidebar.canDropPages = { [weak self] in self.map { $0.pdf.session != nil && !$0.isBusy } ?? false }
         sidebar.onDropPages = { [weak self] source, pages, before in self?.dropPages(source, pages, before: before) }
@@ -272,7 +272,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
                     if page == 0, let last = AppSettings.lastPage(path) { page = last }
                     if let turn = AppSettings.lastRotation(path) { self.pages.setViewRotation(turn) }
                 }
-                if page > 0 { self.go(min(page, self.engine.pageCount - 1)) }
+                if page > 0 { self.go(min(page, self.engine.pageCount - 1), record: false) }
                 self.pages.requestVisible()
                 self.window?.makeFirstResponder(self.pages)
             }
@@ -359,7 +359,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
             let page = reflow.hide()
             toolStrip.isHidden = !AppSettings.markupShown
             let shown = activePages
-            if let page, page != shown.currentPage { go(page) }
+            if let page, page != shown.currentPage { go(page, record: false) }
             window?.makeFirstResponder(shown)
             shown.requestVisible()
         }
@@ -910,6 +910,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         // Not `design`: asking would make Prepare Form's panel for a menu check.
         if let made = madeDesign, made.isDesigning { s.designSelected = made.model.selectedIds.count }
         s.hasGuides = pdf.session?.guides.all.isEmpty == false
+        s.canGoBack = activePages.history.canGoBack
+        s.canGoForward = activePages.history.canGoForward
         let needs = command?.needs ?? Requirement.allCases
         if needs.contains(.selectedText) { s.hasSelectedText = pages.selectedText != nil }
         if needs.contains(.insertionPoint) { s.hasInsertionPoint = pages.insertionPoint != nil }
@@ -1162,7 +1164,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         let across = Double(available.width) / Double(pages.frame.width)
         let down = Double(available.height) / height
         setZoom(min(across, down))
-        go(page)
+        go(page, record: false)
     }
 
     /// The zoom a document opens at (Settings › Open documents at).
@@ -1204,19 +1206,32 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
 
     // MARK: Pages
 
-    @objc func nextPage(_ sender: Any?) { go(min(activePages.currentPage + 1, engine.pageCount - 1)) }
-    @objc func previousPage(_ sender: Any?) { go(max(activePages.currentPage - 1, 0)) }
+    @objc func nextPage(_ sender: Any?) { go(min(activePages.currentPage + 1, engine.pageCount - 1), record: false) }
+    @objc func previousPage(_ sender: Any?) { go(max(activePages.currentPage - 1, 0), record: false) }
     @objc func firstPage(_ sender: Any?) { go(0) }
     @objc func lastPage(_ sender: Any?) { go(engine.pageCount - 1) }
 
     /// Shows page `page` in the active pane, from `targetY` (its space, points from the top) when given, else its top.
-    func go(_ page: Int, targetY: Double? = nil) {
+    /// `record`: a jump Go › Previous View returns from (Windows' `GoToPage(record:)`: links, bookmarks, Go to Page, First
+    /// and Last Page, citations; not turning a page, a thumbnail or the view following another).
+    func go(_ page: Int, targetY: Double? = nil, record: Bool = true) {
         let pages = activePages
         guard page >= 0 && page < pages.pageRects.count else { return }
+        if record { pages.history.record(pages.place) }
         pages.prepareToShow(page)
         // A spot down the page only on an upright view (as Windows: a turned view shows the page's top).
         let y = pages.viewRotation == 0 ? targetY : nil
         pages.scrollTo(y: pages.pageRects[page].minY + (y ?? 0) - (y == nil ? PagesView.gap / 2 : 8))
+    }
+
+    /// Go › Previous View and Next View (Windows' Back and Forward).
+    @objc func previousView(_ sender: Any?) { travel(back: true) }
+    @objc func nextView(_ sender: Any?) { travel(back: false) }
+
+    private func travel(back: Bool) {
+        let pages = activePages, here = pages.place, count = engine.pageCount
+        guard let place = back ? pages.history.back(from: here, pageCount: count) : pages.history.forward(from: here, pageCount: count) else { return }
+        pages.show(place)
     }
 
     @objc func scrolled() {
