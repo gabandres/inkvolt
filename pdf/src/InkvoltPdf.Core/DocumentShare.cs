@@ -104,6 +104,22 @@ public static class DocumentShare
         return path;
     }
 
+    /// <summary>
+    /// At startup, off the UI thread (the next Share… may be weeks away): removes the copies under <paramref name="tempRoot"/>
+    /// older than <see cref="KeepFor"/>. Never throws: a folder it can't read is left for the next time.
+    /// </summary>
+    public static void SweepCopies(string tempRoot, DateTime utcNow)
+    {
+        try
+        {
+            Sweep(Path.Combine(tempRoot, FolderName), utcNow);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or System.Security.SecurityException)
+        {
+            // the temporary folder unreadable or gone: next time
+        }
+    }
+
     /// <summary>Removes the copies' folders older than <see cref="KeepFor"/> (ones in use are left for next time).</summary>
     public static void Sweep(string root, DateTime utcNow)
     {

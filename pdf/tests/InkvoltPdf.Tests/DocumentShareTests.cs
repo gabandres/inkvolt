@@ -50,6 +50,38 @@ public class DocumentShareTests
     }
 
     /// <summary>
+    /// The pre-release review: old copies went only on the next Share…, which may never come. Startup sweeps them, from the
+    /// temporary folder itself, and a temporary folder that isn't there or isn't a folder is no exception.
+    /// </summary>
+    [Fact]
+    public void StartupSweepsOldCopiesAndNeverThrows()
+    {
+        var temp = Path.Combine(Path.GetTempPath(), "inkvolt-share-test-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var now = DateTime.UtcNow;
+            var old = DocumentShare.WriteCopy(temp, "a.pdf", [1], now);
+            var recent = DocumentShare.WriteCopy(temp, "b.pdf", [2], now);
+            Directory.SetCreationTimeUtc(Path.GetDirectoryName(old)!, now - TimeSpan.FromDays(2));
+            DocumentShare.SweepCopies(temp, now);
+            Assert.False(File.Exists(old));
+            Assert.True(File.Exists(recent));
+
+            DocumentShare.SweepCopies(Path.Combine(temp, "not there"), now);
+            File.WriteAllBytes(Path.Combine(temp, "a file"), [0]);
+            Directory.CreateDirectory(Path.Combine(temp, "a file root"));
+            File.WriteAllBytes(Path.Combine(temp, "a file root", DocumentShare.FolderName), [0]); // the share folder's name taken by a file
+            DocumentShare.SweepCopies(Path.Combine(temp, "a file"), now);
+            DocumentShare.SweepCopies(Path.Combine(temp, "a file root"), now);
+            DocumentShare.SweepCopies("bad\0path", now);
+        }
+        finally
+        {
+            Directory.Delete(temp, true);
+        }
+    }
+
+    /// <summary>
     /// The pre-release review: Windows' StorageFile throws ArgumentException for a path too long for it (or \\?\), which
     /// escaped the discarded Share… task, so Share… did nothing; a sheet that failed to show left its request handler
     /// subscribed. Every failure is an outcome, and the offer is withdrawn.

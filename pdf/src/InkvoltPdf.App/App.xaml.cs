@@ -103,6 +103,8 @@ public partial class App : Application
         }
         // A check process starts while the window is made: the first page opened doesn't wait for one.
         Core.PageChecks.Prestart();
+        // Share…'s old copies go now as well as on the next Share… (which may be weeks away): off the UI thread, never throws.
+        _ = Task.Run(() => Core.DocumentShare.SweepCopies(System.IO.Path.GetTempPath(), DateTime.UtcNow));
 
         // The app runs while its main window or Explorer's conversions do (MaybeExit), not only while the main window is
         // open: closing it mid-batch would stop a conversion half written.
