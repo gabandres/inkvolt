@@ -2939,18 +2939,15 @@ struct inkv_pdf_writer {
 inkv_pdf_writer *inkv_pdf_writer_new(void *vctx, char *err) {
     fz_context *ctx = vctx;
     inkv_pdf_writer *w = NULL;
-    fz_output *out = NULL;
     fz_var(w);
-    fz_var(out);
     fz_try(ctx) {
         w = fz_malloc_struct(ctx, inkv_pdf_writer);
         w->buffer = fz_new_buffer(ctx, 64 << 10);
-        out = fz_new_output_with_buffer(ctx, w->buffer);
+        // The writer's from here, failing too: fz_new_pdf_writer_with_output drops it when it throws.
+        fz_output *out = fz_new_output_with_buffer(ctx, w->buffer);
         w->writer = fz_new_pdf_writer_with_output(ctx, out, "compress");
-        out = NULL; // the writer's now
     }
     fz_catch(ctx) {
-        fz_drop_output(ctx, out);
         if (w) fz_drop_buffer(ctx, w->buffer);
         fz_free(ctx, w);
         inkv_error(ctx, err);
