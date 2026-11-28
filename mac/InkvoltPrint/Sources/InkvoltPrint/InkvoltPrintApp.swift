@@ -127,9 +127,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         await MainActor.run {
             let model = AppModel.shared
             if action == Notifier.pauseAction { return model.pauseAlerts(for: Notifier.pauseFor) }
+            // A printer's alert, clicked or Open Printer: that printer (its status); a job's, clicked or Open the Queue: its queue card.
             if let printer, model.printers.contains(where: { $0.id == printer }) {
                 model.selectedID = printer
-                if job { model.paneRequest = .printQueue } // a job's notification, clicked or Open the Queue
+                model.showFleet = false
+                model.request(job ? .printQueue : .status)
             }
             MainWindow.bringForward()
         }

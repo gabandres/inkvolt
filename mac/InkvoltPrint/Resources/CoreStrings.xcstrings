@@ -9667,6 +9667,17 @@
         }
       }
     },
+    "{0} alerts": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} alertas"
+          }
+        }
+      }
+    },
     "{0} Choose SNMP Access… in the printer's menu to change it.": {
       "extractionState": "manual",
       "localizations": {

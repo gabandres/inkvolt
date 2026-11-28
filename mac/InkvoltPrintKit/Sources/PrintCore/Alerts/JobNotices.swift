@@ -47,7 +47,7 @@ public enum QueueJobAttributes {
 }
 
 /// How the alerts read at once become notifications (the Windows app's `AlertToasts.PerPrinter` and `Text`, for jobs): the
-/// printers' problems together, as before (`TrayText.notice`), and each job its own, with Open the queue, except that more
+/// printers' problems apart (each printer's its own notification, `AlertToasts.perPrinter`), and each job its own, with Open the queue, except that more
 /// than `maxJobNotices` from one printer at once share one, so a dead printer doesn't fill the screen.
 public enum JobNotices {
     public static let maxJobNotices = 3

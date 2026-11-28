@@ -4390,6 +4390,16 @@
         }
       }
     },
+    "Open Printer": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir impresora"
+          }
+        }
+      }
+    },
     "Open Printers & Scanners": {
       "localizations": {
         "es": {
