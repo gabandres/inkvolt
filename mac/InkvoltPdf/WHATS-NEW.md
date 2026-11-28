@@ -6,6 +6,7 @@ collects what's done since the last release and is never shown. Short lines, in 
 their Spanish, line for line, shown when the app runs in Spanish: an English line needs its Spanish there (`PdfStringsTests`).
 
 ## Next
+- Help › Keyboard Shortcuts (⌘/) lists every shortcut, with a box to find one. Inkvolt PDF now keeps a log on this Mac (Help › Open Log Folder), and Report a Problem… includes its last lines.
 - View › Highlight Form Fields turns the blue tint over a form's fields off and on.
 - Go › Previous View (⌘[) and Next View (⌘]) take you back to where you were before following a link, a bookmark or Go to Page, and forward again.
 - File › Show in Finder shows the document's file in Finder, and File › Close All (⌥⌘W) closes every document in the window, asking first about any with changes.

@@ -3,8 +3,11 @@ import PdfCore
 import PrintCore
 
 /// The self-test's scenario for the Windows features the Mac lacked (`--edit`, on the synthetic text document;
-/// `--only-parity` runs it alone): File › Export To › Pages as Images… (two pages as PNG and one as JPEG into a folder
-/// of the test's own, read back, a taken name not replaced). Only counts and states are written.
+/// `--only-parity` runs it alone; mac/docs/PLAN.md, "Windows parity audit"): File › Export To › Pages as Images… (two
+/// pages as PNG and one as JPEG into a folder of the test's own, read back, a taken name not replaced); Show in Finder's
+/// enabling and Close All over three new documents, each question answered here; Go › Previous View and Next View after
+/// a jump and a page turn; View › Highlight Form Fields on the form; Help › Keyboard Shortcuts' rows and filter, the log
+/// and Report a Problem's copy of it. Only counts and states are written.
 @MainActor
 struct ParityTest {
     /// While it runs, the documents it opens get only its checks (`Report.documentOpened`).
@@ -46,6 +49,7 @@ struct ParityTest {
         await showInFinderAndCloseAll()
         await history()
         await highlightFields()
+        await shortcutsAndLog()
         Report.write(lines.joined(separator: "\n"))
         Report.write("parity: \(failures == 0 ? "PASS" : "FAIL (\(failures))")")
     }
@@ -164,5 +168,28 @@ struct ParityTest {
         check(!form.form.highlights && form.validateMenuItem(item) && item.state == .off, "highlight fields: turned off, unchecked")
         form.toggleHighlightFields(nil)
         check(form.form.highlights, "highlight fields: on again")
+    }
+
+    // MARK: Keyboard Shortcuts, Open Log Folder
+
+    private mutating func shortcutsAndLog() async {
+        check(menuItem(loc("Keyboard Shortcuts"))?.keyEquivalent == "/", "shortcuts: Help › Keyboard Shortcuts is ⌘/")
+        ShortcutsWindowController.show()
+        await settle()
+        guard let window = ShortcutsWindowController.shared else { return check(false, "shortcuts: the window opened") }
+        let rows = window.rows
+        let file = loc("File")
+        check(rows.contains(ShortcutRow(file, loc("Close All"), "⌥⌘W")) && rows.contains { $0.name == loc("Hand") && $0.keys == "H" },
+              "shortcuts: read from the menus, the tools' single keys too (\(rows.count) rows)")
+        check(rows.suffix(ShortcutList.fixedRows.count) == ShortcutList.fixedRows[...], "shortcuts: the fixed rows at the end")
+        window.filter.stringValue = "zoom"
+        window.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
+        check(!window.shown.isEmpty && window.shown.count < rows.count && window.shown.allSatisfy { "\($0.group) \($0.name)".localizedCaseInsensitiveContains("zoom") },
+              "shortcuts: the filter keeps \(window.shown.count) rows for zoom")
+        window.close()
+        let log = (try? String(contentsOf: AppLog.fileURL, encoding: .utf8)) ?? ""
+        check(log.contains("Inkvolt PDF \(WhatsNew.version) started"), "log: the start written to the self-test's own log folder")
+        check(menuItem(loc("Open Log Folder")).map { NSApp.delegate?.responds(to: $0.action!) == true } == true, "log: Help › Open Log Folder")
+        check(ReportProblemWindowController.report().contains("started (macOS"), "log: Report a Problem copies the log's last lines")
     }
 }

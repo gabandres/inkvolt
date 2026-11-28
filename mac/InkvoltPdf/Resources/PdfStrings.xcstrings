@@ -27764,6 +27764,204 @@
           }
         }
       }
+    },
+    "Drawing": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dibujo"
+          }
+        }
+      }
+    },
+    "Search all commands": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscar en todos los comandos"
+          }
+        }
+      }
+    },
+    "Keyboard Shortcuts": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Métodos abreviados de teclado"
+          }
+        }
+      }
+    },
+    "Open Log Folder": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir la carpeta de registros"
+          }
+        }
+      }
+    },
+    "Reading": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lectura"
+          }
+        }
+      }
+    },
+    "Anywhere": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En cualquier lugar"
+          }
+        }
+      }
+    },
+    "Scroll by a screen": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desplazar una pantalla"
+          }
+        }
+      }
+    },
+    "⇞ / ⇟ / Space": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⇞ / ⇟ / Space"
+          }
+        }
+      }
+    },
+    "Zoom at the pointer": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zoom en el puntero"
+          }
+        }
+      }
+    },
+    "Pinch": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pellizcar"
+          }
+        }
+      }
+    },
+    "Select a word / line": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seleccionar una palabra / línea"
+          }
+        }
+      }
+    },
+    "Double-click / triple-click (Select text tool)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Doble clic / triple clic (herramienta Seleccionar texto)"
+          }
+        }
+      }
+    },
+    "Back to the Select Text tool": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volver a la herramienta Seleccionar texto"
+          }
+        }
+      }
+    },
+    "Move the selected drawing": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mover el dibujo seleccionado"
+          }
+        }
+      }
+    },
+    "Drag, or arrow keys (Shift: 10 pt)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arrastrar, o flechas (Shift: 10 pt)"
+          }
+        }
+      }
+    },
+    "Delete the selected drawing": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eliminar el dibujo seleccionado"
+          }
+        }
+      }
+    },
+    "Next / previous comment": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comentario siguiente / anterior"
+          }
+        }
+      }
+    },
+    "Open the inspector": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir el inspector"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

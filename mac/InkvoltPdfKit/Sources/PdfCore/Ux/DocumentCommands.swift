@@ -586,10 +586,14 @@ public enum DocumentCommands {
     ])
 
     static let helpMenu = CommandMenu("Help", .help, [
+        // Windows: Help › Keyboard Shortcuts (F1; ⌘/ here, ⌘? being macOS's Help search).
+        c("Keyboard Shortcuts", "showKeyboardShortcuts:", "/"),
         c("What's New in Inkvolt PDF", "showWhatsNew:"),
         c("Inkvolt Pro…", "showPro:"),
         c("Inkvolt PDF on GitHub", "openSourcePage:"),
         c("Report a Problem…", "reportProblem:"),
+        // Windows: Help › Open Log Folder (the folder of `AppLog`).
+        c("Open Log Folder", "openLogFolder:"),
     ])
 
     /// A command with the menus it's in (["File", "Export To"]).

@@ -161,6 +161,8 @@ enum Report {
             stringsMissing = catalogs.missing
             for line in catalogs.lines { write(line) }
         }
+        // The log in a folder of the self-test's own, never the user's.
+        AppLog.folder = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("inkvolt-selftest-log-\(UUID().uuidString.prefix(8))")
         // Settings go to a suite of the self-test's own, never the user's.
         AppSettings.clearTestSuite(AppTest.settingsSuite)
         AppSettings.defaults = UserDefaults(suiteName: AppTest.settingsSuite) ?? .standard

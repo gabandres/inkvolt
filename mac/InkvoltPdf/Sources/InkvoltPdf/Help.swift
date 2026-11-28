@@ -201,7 +201,7 @@ final class AboutWindowController: NSWindowController {
 
 /// Help › Report a Problem… (the Windows app's `AppHelp.ShowReport`): the details a report needs, scrubbed
 /// (`ProblemReport`, masked by PrintCore's `Diagnostics.scrub`), shown first, then copied for the user to paste into a
-/// GitHub issue. Nothing is sent from the app. The Mac app keeps no log, so the report says "(no log yet)".
+/// GitHub issue. Nothing is sent from the app. The log's last lines (`AppLog`) are scrubbed with the rest.
 @MainActor
 final class ReportProblemWindowController: NSWindowController {
     static var shared: ReportProblemWindowController?
@@ -228,7 +228,7 @@ final class ReportProblemWindowController: NSWindowController {
         #endif
     }
 
-    /// The report: the version, macOS, a few settings (scrubbed), no log.
+    /// The report: the version, macOS, a few settings and the log's last lines (scrubbed).
     static func report() -> String {
         func onOff(_ on: Bool) -> String { on ? "on" : "off" }
         let ai = AppSettings.ai
@@ -247,7 +247,7 @@ final class ReportProblemWindowController: NSWindowController {
         ]
         let who = Diagnostics.Identity.current
         return ProblemReport.report(app: "Inkvolt PDF", version: WhatsNew.version, system: system, architecture: architecture,
-                                    packaged: false, settings: settings, logTail: [], scrub: { Diagnostics.scrub($0, who) })
+                                    packaged: false, settings: settings, logTail: ProblemReport.tail(AppLog.fileURL.path), scrub: { Diagnostics.scrub($0, who) })
     }
 
     init() {

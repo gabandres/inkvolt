@@ -5,6 +5,7 @@ Inkvolt PDF). Los mismos encabezados en el mismo orden y una línea por cada lí
 WHATS-NEW.md necesita aquí su español (`PdfStringsTests` comprueba que los encabezados y el número de líneas coincidan).
 
 ## Next
+- Ayuda › Métodos abreviados de teclado (⌘/) muestra todos los métodos abreviados, con un cuadro para encontrar uno. Inkvolt PDF ahora guarda un registro en este Mac (Ayuda › Abrir la carpeta de registros), y Informar un problema… incluye sus últimas líneas.
 - Visualización › Resaltar campos de formulario quita y vuelve a poner el tono azul sobre los campos de un formulario.
 - Ir › Vista anterior (⌘[) y Vista siguiente (⌘]) te devuelven adonde estabas antes de seguir un vínculo, un marcador o Ir a la página, y te llevan de nuevo hacia adelante.
 - Archivo › Mostrar en Finder muestra el archivo del documento en Finder, y Archivo › Cerrar todo (⌥⌘W) cierra todos los documentos de la ventana y pregunta antes por los que tienen cambios.

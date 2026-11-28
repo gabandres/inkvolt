@@ -4533,17 +4533,6 @@
         }
       }
     },
-    "Drawing": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dibujo"
-          }
-        }
-      }
-    },
     "Drawing tools": {
       "extractionState": "manual",
       "localizations": {
@@ -12735,17 +12724,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Buscar en carpetas"
-          }
-        }
-      }
-    },
-    "Search all commands": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Buscar en todos los comandos"
           }
         }
       }
@@ -26837,6 +26815,39 @@
           "stringUnit": {
             "state": "translated",
             "value": "Se exportaron {0} imagen(es) a {1}. Se omitieron las páginas {2}: no se pudieron leer"
+          }
+        }
+      }
+    },
+    "Keyboard shortcuts": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Métodos abreviados de teclado"
+          }
+        }
+      }
+    },
+    "Type to filter: zoom, rotate, ⇧⌘…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escribe para filtrar: zoom, girar, ⇧⌘…"
+          }
+        }
+      }
+    },
+    "Filter shortcuts": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Filtrar métodos abreviados"
           }
         }
       }

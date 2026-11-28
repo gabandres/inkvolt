@@ -1246,6 +1246,7 @@ at under "What a person must look at" and in each section.
 | 4.2 | Find and Replace across the document (roadmap 4.2): Edit › Find › Find and Replace…, a sheet listing every match with its page and the words around it as it is typed, Replace and Replace All (one undo step, one save, what couldn't be replaced as asked listed) (`TextReplace`, `ContentEditor.paragraphsOf`/`replaceParagraphIn`, ReplaceSheet.swift) | TextReplaceTests (with `ReplacedTextReadsTheSameInPdfJs`, opt-in) |
 | X1 | Export Pages as Images (the parity audit of 2026-11-27, below): File › Export To › Pages as Images… and Convert › Images…, the pages chosen as PNG or JPEG at 72 to 600 dpi in a folder, named "name - page N.png" without replacing a file, a page too large lowered under 64 megapixels after asking, a page that can't be read left out and said, Cancel keeping the images before it (`PageImageExport`; ExportImages.swift; `--edit --only-parity` drives it) | PageImageExportTests (Mac only: Windows' `FileActions.ExportImages` is app code without tests) |
 | X3 | Previous View and Next View (the parity audit): Go › Previous View (⌘[) and Next View (⌘]) and the pages' menu, back and forward through the jumps of each pane (`NavigationHistory`, `PagesView.place`, `DocumentWindowController.go(record:)`) | NavigationHistoryTests (Mac only: Windows' `PageViewer` stacks have no tests) |
+| X5 | Help › Keyboard Shortcuts (⌘/) and Open Log Folder (the parity audit): the shortcuts read from the menu bar with a filter, the app's log (`ShortcutList`, `AppLog`; ShortcutsWindow.swift) | ShortcutListTests, AppLogTests (Mac only: Windows' are app code without tests) |
 | X6 | File › Show in Finder and Close All (⌥⌘W) (the parity audit): the document's file in Finder; this window's tabs closed one by one, each asking, Cancel stopping (FileCommands.swift) | (none: app code on Windows too; `ParityTest` drives them) |
 
 From the steps, besides the sections below:
@@ -2471,6 +2472,17 @@ Windows as the spec; `ParityTest` (`--edit --only-parity`) drives them in the ap
   Windows' each tab). Off, the fields to fill are neither tinted nor outlined and only the focused one's ring shows (the
   Mac tinted them always). Dark pages still outline them where Windows draws nothing. Not checked by a person: the
   fields on screen either way.
+- Keyboard Shortcuts and Open Log Folder (X5): Help › Keyboard Shortcuts (⌘/; Windows' F1, ⌘? being macOS's Help
+  search) lists every menu command with keys, read from the menu bar as it is (the tools' single keys included), under
+  its menu, then the page view's own keys and gestures (`ShortcutList.fixedRows`: Windows' rows as the Mac has them:
+  Page Up, Page Down and Space, a pinch, the selected comment's arrows, Delete, Tab and Return; Esc goes back to Select
+  Text where Windows' goes to the hand; no rows for the pages pane, Organize Pages or Compare, whose keys the Mac lacks
+  or has in its menus), with Windows' filter box. The Mac kept no log: `AppLog` (PdfCore) is Windows' `Log` in
+  ~/Library/Logs/Inkvolt PDF (Console lists it; 1 MB and one older file, as Windows), written at start, on every error
+  the app shows, when a file can't be opened and for a format's unreadable pages; Windows writes about 250 places, the
+  Mac these so far. Help › Open Log Folder opens it in Finder; Report a Problem… copies its last lines, scrubbed, as
+  Windows' does. The self-test logs to a folder of its own. Not checked by a person: the window by eye and with
+  VoiceOver, the log in Console.
 
 ### Paragraph editing (roadmap 2.1)
 
