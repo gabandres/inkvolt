@@ -22,6 +22,12 @@ public struct VisionRecognizer: TextRecognizer {
     }
 
     public func recognize(_ image: RenderedImage, cancel: CancelToken?) throws -> [OcrWord] {
+        try read(image, cancel: cancel).map(\.word)
+    }
+
+    /// The words with their lines (Vision's observations) and Vision's confidence, which is a line's (its top candidate's,
+    /// 0 to 1, given here as 0 to 100 for each of its words).
+    public func read(_ image: RenderedImage, cancel: CancelToken?) throws -> [RecognizedWord] {
         try cancel.check()
         guard let cg = Self.cgImage(image) else { throw PdfEngineError(message: loc("The page image can't be read for text recognition.")) }
         let request = VNRecognizeTextRequest()
@@ -48,10 +54,11 @@ public struct VisionRecognizer: TextRecognizer {
             // Vision's boxes are fractions of the image with the origin at the bottom left.
             RectD(Double(box.minX) * w, (1 - Double(box.maxY)) * h, Double(box.width) * w, Double(box.height) * h)
         }
-        var words: [OcrWord] = []
-        for observation in request.results ?? [] {
+        var words: [RecognizedWord] = []
+        for (index, observation) in (request.results ?? []).enumerated() {
             guard let candidate = observation.topCandidates(1).first else { continue }
             let line = candidate.string
+            let confidence = Double(candidate.confidence) * 100
             var start: String.Index?
             var i = line.startIndex
             while i <= line.endIndex {
@@ -59,7 +66,7 @@ public struct VisionRecognizer: TextRecognizer {
                 if atSpace, let s = start {
                     let range = s..<i
                     let box = (try? candidate.boundingBox(for: range))?.boundingBox ?? observation.boundingBox
-                    words.append(OcrWord(String(line[range]), pixels(box)))
+                    words.append(RecognizedWord(String(line[range]), pixels(box), line: index, confidence: confidence.isFinite ? confidence : nil))
                     start = nil
                 } else if !atSpace && start == nil {
                     start = i

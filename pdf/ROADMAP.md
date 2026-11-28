@@ -185,8 +185,8 @@ Done, Windows. Results: `pdf/tools/ocr-corpus` (RESULTS.md, RESULTS-photos.md).
 - **Make Text Editable** (`EditableText`, `FontMatch`): recognized text becomes real text in the closest installed face,
   paragraphs laid out so the paragraph editor reads them as one.
 - **Mac:** stage A done with Apple's Vision. Vision skips no line on the corpus (`VisionProbeTests`), so `MissedLines` and
-  `ReadOnes` aren't needed there. Not ported: Tesseract, photographed pages, Make Text Editable, and writing both
-  languages' tags back into a text layer ("en-US+es-MX": the Mac keeps one).
+  `ReadOnes` aren't needed there. Photographed pages, Make Text Editable and mixed languages done (2026-11-27, PrintCore's `Trapezoid` and `CurvedLines`, PdfCore's `EditableText` and `MixedRecognizer`, both languages' tags kept in the text layer); words Vision is unsure of are suspect under Windows' 60 (Vision's confidence is a line's and was 1.0 on the whole corpus, so it marks none there). No
+  Tesseract on the Mac (the owner, 2026-11-27: Vision reads everything; `mac/docs/PLAN.md`, "Better OCR, the rest").
 
 ### 2.3 USB scanners (WIA, TWAIN)
 Done, Windows and Mac. Windows: File › Scan lists WIA scanners (`WiaScanner` over `WindowsWia`, the shared library) and

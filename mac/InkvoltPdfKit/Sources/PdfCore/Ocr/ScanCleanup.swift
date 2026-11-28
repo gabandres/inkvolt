@@ -17,11 +17,12 @@ private func withStop<T>(_ cancel: CancelToken?, _ body: (BatchStop?) throws -> 
 
 extension ScanCleanup {
     /// `pixels` (rows of `width` × `channels` bytes, 1 = grey, 3 = RGB) at `dpi` cleaned for the recognizer
-    /// (`ScanCleanup.clean(…stop:)`). `keepColor` also returns the cleaned page in colour (RGB input only).
+    /// (`ScanCleanup.clean(…stop:)`). `keepColor` also returns the cleaned page in colour (RGB input only). `steps`: a
+    /// photographed page's trapezoid, a book's bent lines (roadmap 2.2), each only where the page clearly needs it.
     /// - Throws: `CancellationError` when `cancel` fires.
     public static func clean(_ pixels: [UInt8], _ width: Int, _ height: Int, _ channels: Int, _ dpi: Int, keepColor: Bool = false,
-                             cancel: CancelToken? = nil) throws -> CleanedScan {
-        try withStop(cancel) { stop in try clean(pixels, width, height, channels, dpi, keepColor: keepColor, stop: stop) }
+                             cancel: CancelToken? = nil, steps: CleanupSteps = []) throws -> CleanedScan {
+        try withStop(cancel) { stop in try clean(pixels, width, height, channels, dpi, keepColor: keepColor, stop: stop, steps: steps) }
     }
 }
 

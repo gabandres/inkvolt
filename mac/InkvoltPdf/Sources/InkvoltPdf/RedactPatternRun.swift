@@ -9,7 +9,7 @@ import PrintCore
 extension DocumentWindowController {
     /// The recognizer redaction by pattern reads scans with (nil: the self-test's, when it set one).
     var patternReader: any TextRecognizer {
-        redaction.testReader ?? VisionRecognizer(languages: SavedOcr.language.map { [$0] })
+        redaction.testReader ?? SavedOcr.reader()
     }
 
     /// The whole command; true when anything was applied.

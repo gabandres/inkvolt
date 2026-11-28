@@ -120,6 +120,15 @@ enum ScanCorpus {
         return (pixels, width, height, CorpusPage(words: lines[p].flatMap { $0.split(separator: " ").map(String.init) }, skew: skew, turns: turns))
     }
 
+    /// One page as typeset, grey at 300 dpi, before any damage, and its words (Windows' `ScanCorpus.CleanPage`).
+    static func cleanPage(_ file: CorpusFile, _ page: Int) throws -> (pixels: [UInt8], width: Int, height: Int, words: [String]) {
+        let (text, lines) = textPdf(file)
+        let engine = try PdfEngine.open(text)
+        defer { engine.close() }
+        let gray = try grayPage(engine, page)
+        return (gray.pixels, gray.width, gray.height, lines[page].flatMap { $0.split(separator: " ").map(String.init) })
+    }
+
     private static func grayPage(_ engine: PdfEngine, _ p: Int) throws -> GrayImage {
         let img = try engine.render(p, scale: Double(dpi) / 72)
         return GrayImage(img.width, img.height, ScanCleanup.toGray(img.pixels, img.width, img.height))
@@ -247,14 +256,14 @@ enum ScanCorpus {
         return (-2 * log(u)).squareRoot() * cos(2 * .pi * rng.nextDouble())
     }
 
-    private static func jpeg(_ gray: [UInt8], _ w: Int, _ h: Int) throws -> [UInt8] {
+    static func jpeg(_ gray: [UInt8], _ w: Int, _ h: Int, quality: Double = 0.7) throws -> [UInt8] {
         let data = NSMutableData()
         guard let provider = CGDataProvider(data: Data(gray) as CFData),
               let image = CGImage(width: w, height: h, bitsPerComponent: 8, bitsPerPixel: 8, bytesPerRow: w, space: CGColorSpaceCreateDeviceGray(),
                                   bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.none.rawValue), provider: provider, decode: nil,
                                   shouldInterpolate: false, intent: .defaultIntent),
               let dest = CGImageDestinationCreateWithData(data, "public.jpeg" as CFString, 1, nil) else { throw PdfEngineError(message: "JPEG") }
-        CGImageDestinationAddImage(dest, image, [kCGImageDestinationLossyCompressionQuality: 0.7] as CFDictionary)
+        CGImageDestinationAddImage(dest, image, [kCGImageDestinationLossyCompressionQuality: quality] as CFDictionary)
         guard CGImageDestinationFinalize(dest) else { throw PdfEngineError(message: "JPEG") }
         return [UInt8](data as Data)
     }
@@ -265,7 +274,7 @@ enum ScanCorpus {
 
     /// The clean text pages: a heading in Helvetica-Bold, then paragraphs in the file's font, wrapped by an estimated glyph
     /// width (on the wide side, so no line runs off the page); with each page's lines.
-    private static func textPdf(_ file: CorpusFile) -> (pdf: [UInt8], lines: [[String]]) {
+    static func textPdf(_ file: CorpusFile) -> (pdf: [UInt8], lines: [[String]]) {
         var rng = Rng(seed(file.name))
         var lines: [[String]] = []
         let fonts = "/F1 << /Type /Font /Subtype /Type1 /BaseFont \(file.font) /Encoding /WinAnsiEncoding >> "
@@ -301,7 +310,7 @@ enum ScanCorpus {
         return (writer.finish(catalog), lines)
     }
 
-    private static func scanPdf(_ file: CorpusFile, _ pages: [(jpeg: [UInt8], width: Int, height: Int)]) -> [UInt8] {
+    static func scanPdf(_ file: CorpusFile, _ pages: [(jpeg: [UInt8], width: Int, height: Int)]) -> [UInt8] {
         var writer = CorpusPdf()
         let parent = writer.reserve()
         var kids: [Int] = []

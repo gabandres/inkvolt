@@ -202,17 +202,34 @@ enum SavedOcr {
     /// The language chosen (nil: Vision finds out for itself), kept with the text layer.
     static var language: String? { AppSettings.ocrLanguage.isEmpty ? nil : AppSettings.ocrLanguage }
 
+    /// The other language on the same pages (roadmap 2.2's mixed languages): only with a first language chosen, and not
+    /// the same one.
+    static var secondLanguage: String? {
+        let second = AppSettings.ocrSecondLanguage
+        guard let language, !second.isEmpty, second.caseInsensitiveCompare(language) != .orderedSame else { return nil }
+        return second
+    }
+
+    /// What reads as Recognize Text was last set (Windows' `PageOcr.Build` of the chosen plan): Vision in the chosen
+    /// language, or Vision in each of two languages, each line kept from the one that reads it better (`MixedRecognizer`,
+    /// each with its Mac dictionary). Batch, Scan, export, Compare and Redact by Pattern read with it.
+    static func reader() -> any TextRecognizer {
+        let first = VisionRecognizer(languages: language.map { [$0] })
+        guard let second = secondLanguage else { return first }
+        return MixedRecognizer(first, MacSpelling(language: language), VisionRecognizer(languages: [second]), MacSpelling(language: second))
+    }
+
     static func recognizer() -> Recognizer {
-        let reader = VisionRecognizer(languages: language.map { [$0] })
-        let options = RecognizeOptions(clean: AppSettings.ocrClean, checkWords: AppSettings.ocrSuspects)
-        return PageOcr.recognizer(reader, options: options, spelling: options.checkWords ? MacSpelling(language: reader.language) : nil)
+        let reader = reader()
+        let options = AppSettings.ocrOptions()
+        return PageOcr.recognizer(reader, options: options, spelling: options.checkWords ? MacSpelling.of(reader.language) : nil)
     }
 
     /// A batch's host: the recognizer and its language, the reader Redact Patterns searches scans with, and the password
     /// prompt when someone is there to answer.
     static func batchHost(askPassword: (@Sendable (BatchPasswordRequest, CancelToken?) async -> String?)? = nil) -> BatchHost {
-        BatchHost(askPassword: askPassword, recognize: recognizer(), recognizeLanguage: language,
-                  reader: VisionRecognizer(languages: language.map { [$0] }))
+        let reader = reader()
+        return BatchHost(askPassword: askPassword, recognize: recognizer(), recognizeLanguage: reader.language, reader: reader)
     }
 }
 
@@ -269,28 +286,50 @@ extension DocumentWindowController {
         language.selectItem(at: (languages.firstIndex { $0.tag == AppSettings.ocrLanguage }).map { $0 + 1 } ?? 0)
         language.setAccessibilityLabel(loc("Language"))
         language.toolTip = loc("The language of the text. Vision detects it when you don't choose one.")
+        // A second language on the same pages (roadmap 2.2): Vision reads the page in each, line by line the better kept.
+        let second = NSPopUpButton(frame: .zero, pullsDown: false)
+        second.addItems(withTitles: [loc("None", context: "no second language")] + languages.map(\.name))
+        second.selectItem(at: (languages.firstIndex { $0.tag == AppSettings.ocrSecondLanguage }).map { $0 + 1 } ?? 0)
+        second.setAccessibilityLabel(loc("Second language"))
+        second.toolTip = loc("For pages in two languages. Each line is kept from the one that reads it better.")
+        // Only with a language chosen: Vision detecting the language reads one.
+        _ = ControlAction(language) { second.isEnabled = language.indexOfSelectedItem > 0 }
+        second.isEnabled = language.indexOfSelectedItem > 0
         let clean = NSButton(checkboxWithTitle: loc("Straighten and clean the pages first"), target: nil, action: nil)
         clean.state = AppSettings.ocrClean ? .on : .off
         clean.toolTip = loc("Straightens pages up to 15°, turns sideways and upside-down pages upright, removes specks and evens out grey paper before recognizing.")
         let suspects = NSButton(checkboxWithTitle: loc("List the words to check"), target: nil, action: nil)
         suspects.state = AppSettings.ocrSuspects ? .on : .off
         suspects.toolTip = loc("Words the dictionary doesn't know, letters and digits mixed, odd characters, or words read differently before cleaning. Tools › Review Suspect Words lists them.")
+        // The cleaning's further steps (roadmap 2.2): only with cleaning, each acting only on a page that clearly needs it.
+        let trapezoid = NSButton(checkboxWithTitle: loc("Straighten pages photographed at an angle"), target: nil, action: nil)
+        trapezoid.state = AppSettings.ocrTrapezoid ? .on : .off
+        trapezoid.toolTip = loc("A page photographed at an angle on a darker surface is turned back into a rectangle before recognizing. Pages whose four edges don't clearly show are left as they are.")
+        let curved = NSButton(checkboxWithTitle: loc("Flatten lines bent by a book's spine"), target: nil, action: nil)
+        curved.state = AppSettings.ocrCurvedLines ? .on : .off
+        curved.toolTip = loc("Lines of text that curve towards the binding of an open book are made straight before recognizing. Pages whose lines are already straight are left as they are.")
         let replace = NSButton(checkboxWithTitle: loc("Keep the cleaned pages (instead of the scans)"), target: nil, action: nil)
         replace.state = .off
-        replace.isEnabled = clean.state == .on
         replace.toolTip = loc("The pages then look straightened and cleaned, and upside-down or sideways pages are turned upright. Undo puts the scans back until you save.")
-        let toggle = CheckToggle {
-            replace.isEnabled = clean.state == .on
-            if clean.state == .off { replace.state = .off }
+        func cleaning(_ on: Bool) {
+            replace.isEnabled = on
+            trapezoid.isEnabled = on
+            curved.isEnabled = on
+            if !on { replace.state = .off }
         }
+        cleaning(clean.state == .on)
+        let toggle = CheckToggle { cleaning(clean.state == .on) }
         clean.target = toggle
         clean.action = #selector(CheckToggle.changed)
         let form = SheetForm("RecognizeText")
         form.row(loc("Pages"), choice.view)
         form.row(loc("Language"), language)
+        form.row(loc("Second language"), second)
         form.note(loc("Pages that already have text are skipped."))
         form.row(nil, clean, advanced: true)
         form.note(loc("Turns pages upright, straightens them (up to 15°) and removes specks and grey paper before reading."), advanced: true)
+        form.row(nil, trapezoid, advanced: true)
+        form.row(nil, curved, advanced: true)
         form.row(nil, replace, advanced: true)
         form.row(nil, suspects, advanced: true)
         form.note(loc("Words it wasn't sure of are listed in Tools › Review Suspect Words."), advanced: true)
@@ -308,10 +347,14 @@ extension DocumentWindowController {
                 }
                 let index = language.indexOfSelectedItem
                 AppSettings.ocrLanguage = index > 0 && index <= languages.count ? languages[index - 1].tag : ""
+                let also = second.indexOfSelectedItem
+                // Saved at once: Vision needs no download (Windows saves its languages once installed, PageOcr.Choose).
+                AppSettings.ocrSecondLanguage = index > 0 && also > 0 && also <= languages.count ? languages[also - 1].tag : ""
                 AppSettings.ocrClean = clean.state == .on
                 AppSettings.ocrSuspects = suspects.state == .on
-                let options = RecognizeOptions(clean: clean.state == .on, checkWords: suspects.state == .on,
-                                               keepCleanedImage: clean.state == .on && replace.state == .on)
+                AppSettings.ocrTrapezoid = trapezoid.state == .on
+                AppSettings.ocrCurvedLines = curved.state == .on
+                let options = AppSettings.ocrOptions(keepCleaned: clean.state == .on && replace.state == .on)
                 // The alert's sheet is still closing: start once it's gone.
                 DispatchQueue.main.async {
                     MainActor.assumeIsolated { self.startLongTask { await self.runRecognize(pages: chosen, options: options) } }
@@ -350,10 +393,9 @@ extension DocumentWindowController {
         if let recognizer {
             (outcome, report) = await editor.recognizeText(pages: chosen, recognizer: recognizer, cancel: sheet.token, progress: progress)
         } else {
-            let options = options ?? RecognizeOptions(clean: AppSettings.ocrClean, checkWords: AppSettings.ocrSuspects)
-            let language = AppSettings.ocrLanguage
-            let reader: any TextRecognizer = ocr ?? VisionRecognizer(languages: language.isEmpty ? nil : [language])
-            let dictionary: (any Spelling)? = options.checkWords ? (spelling ?? MacSpelling(language: reader.language)) : nil
+            let options = options ?? AppSettings.ocrOptions()
+            let reader: any TextRecognizer = ocr ?? SavedOcr.reader()
+            let dictionary: (any Spelling)? = options.checkWords ? (spelling ?? MacSpelling.of(reader.language)) : nil
             (outcome, report) = await editor.recognizeText(pages: chosen, ocr: reader, options: options, spelling: dictionary,
                                                            cancel: sheet.token, progress: progress)
         }

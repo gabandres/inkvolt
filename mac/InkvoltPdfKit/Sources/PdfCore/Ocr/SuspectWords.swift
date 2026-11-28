@@ -25,6 +25,8 @@ public struct SuspectReasons: OptionSet, Sendable, Hashable {
     public static let oddCharacters = SuspectReasons(rawValue: 4)
     /// Read differently from the page as scanned than from the cleaned page.
     public static let readDifferently = SuspectReasons(rawValue: 8)
+    /// The recognizer itself wasn't sure of it (its confidence under its `unsureBelow`; Windows: Tesseract's under 60).
+    public static let unsure = SuspectReasons(rawValue: 16)
 }
 
 /// Suspect words (the Windows app's `SuspectWords`): recognized words worth a second look. Vision gives a confidence per
@@ -33,6 +35,9 @@ public struct SuspectReasons: OptionSet, Sendable, Hashable {
 /// odd characters, or when the page as scanned and the cleaned page gave different words at its place. Short words,
 /// numbers, words in capitals (an acronym) and the usual mixes (A4, 2nd, 10mm, MP3) are left alone.
 public enum SuspectWords {
+    /// An engine's confidence under this (0 to 100) makes a word suspect (Windows' `UnsureBelow`, for Tesseract's).
+    public static let unsureBelow = 60.0
+
     private static let edges = Set(".,;:!?¿¡\"'“”‘’«»()[]{}…*")
 
     public static func check(_ text: String, _ spelling: (any Spelling)?) -> SuspectReasons {

@@ -22,6 +22,14 @@ struct MacSpelling: Spelling {
         checkerLanguage = match
     }
 
+    /// The Mac's dictionary for a recognizer's or a text layer's language; for two ("en-US+es-MX", a page read in two
+    /// languages) both as one (`EitherSpelling`, Windows' `PageOcr.SpellingOf`). Nil when the Mac has none of them.
+    static func of(_ languages: String?) -> (any Spelling)? {
+        let tags = (languages ?? "").split(separator: "+").map(String.init)
+        if tags.count <= 1 { return MacSpelling(language: languages) }
+        return tags.reduce(nil as (any Spelling)?) { EitherSpelling.of($0, MacSpelling(language: $1)) }
+    }
+
     func isKnown(_ word: String) -> Bool {
         let language = checkerLanguage
         return Self.onMain {
@@ -60,6 +68,7 @@ struct SuspectWordItem {
         if word.suspect.contains(.lettersAndDigits) { why.append(loc("letters and digits mixed")) }
         if word.suspect.contains(.oddCharacters) { why.append(loc("odd characters")) }
         if word.suspect.contains(.readDifferently) { why.append(loc("read differently before cleaning")) }
+        if word.suspect.contains(.unsure) { why.append(loc("the recognizer wasn't sure of it")) }
         return why.joined(separator: ", ")
     }
 
@@ -273,7 +282,7 @@ extension DocumentWindowController {
         pane.onCorrect = { [weak self] item, text in self?.correctSuspect(item, text) }
         pane.onKeep = { [weak self] item in self?.keepSuspect(item) }
         pane.suggest = { item in
-            guard item.word.suspect.contains(.notInDictionary), let spelling = MacSpelling(language: item.language) else { return [] }
+            guard item.word.suspect.contains(.notInDictionary), let spelling = MacSpelling.of(item.language) else { return [] }
             return spelling.suggest(SuspectWords.core(item.word.text))
         }
         refreshSuspectWords()

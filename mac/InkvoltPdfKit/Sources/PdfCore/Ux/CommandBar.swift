@@ -158,6 +158,8 @@ public enum CommandBar {
                 Item("ScanBacks", loc("Scan the Backs…"), loc("Scan the backs, put after their fronts"), "rectangle.on.rectangle", action: "scanBacks:"),
                 Item("ReviewSuspectWords", loc("Review Suspect Words"), loc("Check the words OCR wasn't sure of"), "exclamationmark.magnifyingglass",
                      action: "reviewSuspectWords:", startsSection: true),
+                Item("MakeTextEditable", loc("Make Text Editable"), loc("Turn recognized text into text you can edit"), "character.cursor.ibeam",
+                     action: "makeTextEditable:"),
             ]),
         ]
     }

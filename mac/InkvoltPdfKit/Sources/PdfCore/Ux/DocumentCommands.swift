@@ -503,6 +503,7 @@ public enum DocumentCommands {
         sep,
         c("Recognize Text (OCR)…", "recognizeText:", needs: longTask),
         c("Review Suspect Words", "reviewSuspectWords:"),
+        c("Make Text Editable…", "makeTextEditable:", needs: longTask),
         .submenu(CommandMenu("Forms", [
             c("Prepare Form", "togglePrepareForm:", "f", [.command, .option], needs: [.document]),
             c("Detect Form Fields", "detectFormFields:", needs: [.document, .idle]),

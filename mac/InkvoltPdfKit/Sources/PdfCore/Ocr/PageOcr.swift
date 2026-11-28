@@ -9,10 +9,59 @@ public protocol TextRecognizer: Sendable {
     /// The words on the image, in reading order, their boxes in the image's pixels (top-left origin).
     /// - Throws: `CancellationError` when `cancel` fires.
     func recognize(_ image: RenderedImage, cancel: CancelToken?) throws -> [OcrWord]
+
+    /// The same words with their lines and the engine's confidence (a default reads `recognize`'s).
+    func read(_ image: RenderedImage, cancel: CancelToken?) throws -> [RecognizedWord]
+
+    /// A word whose confidence is under this (0 to 100) is a suspect word: the engine wasn't sure of it
+    /// (`SuspectReasons.unsure`; Windows marks Tesseract's under `SuspectWords.unsureBelow`, 60). Vision's: `VisionRecognizer`.
+    var unsureBelow: Double { get }
 }
 
 extension TextRecognizer {
     public var language: String? { nil }
+
+    public var unsureBelow: Double { SuspectWords.unsureBelow }
+
+    /// The words with their lines and the engine's confidence (Windows' `ITextRecognizer.Recognize`): `recognize`'s, each
+    /// line the words that follow one another on one band of height, no confidence. Vision's own lines and confidence
+    /// replace this (`VisionRecognizer`).
+    public func read(_ image: RenderedImage, cancel: CancelToken?) throws -> [RecognizedWord] {
+        RecognizedWord.inLines(try recognize(image, cancel: cancel))
+    }
+}
+
+/// A word as an engine reads it (Windows' shared `RecognizedWord`): its text and box in the image's pixels, the index of
+/// its line (words of a line are next to each other), and how sure the engine was of it (0 to 100) when it says.
+public struct RecognizedWord: Equatable, Sendable {
+    public var text: String
+    public var rect: RectD
+    public var line: Int
+    public var confidence: Double?
+
+    public init(_ text: String, _ rect: RectD, line: Int, confidence: Double? = nil) {
+        self.text = text
+        self.rect = rect
+        self.line = line
+        self.confidence = confidence
+    }
+
+    public var word: OcrWord { OcrWord(text, rect) }
+
+    /// Words in reading order put in lines: a word starts a new line when it doesn't share most of the last one's height
+    /// or lies left of it.
+    public static func inLines(_ words: [OcrWord]) -> [RecognizedWord] {
+        var line = 0
+        var last: RectD?
+        return words.map { w in
+            if let l = last {
+                let down = min(l.bottom, w.rect.bottom) - max(l.y, w.rect.y)
+                if down < 0.5 * min(l.height, w.rect.height) || w.rect.x < l.x { line += 1 }
+            }
+            last = w.rect
+            return RecognizedWord(w.text, w.rect, line: line)
+        }
+    }
 }
 
 /// The recognizer Core is given (pdf/GLOSSARY.md "Recognizer"; .NET's `Func<PdfEngine, int, CancellationToken,

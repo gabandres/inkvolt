@@ -1244,6 +1244,7 @@ at under "What a person must look at" and in each section.
 | 4.9 | Two documents side by side (roadmap 4.9): AppKit's window tabs (Window › Move Tab to New Window, a tab dragged out or onto another window, Merge All Windows) kept in step with `DocumentWindows` by the app's `WindowHub`: a file open once (in any window, by any spelling of its path, never read twice at once), documents opened join the window used last, File › New Window and the Dock menu's New Window give the next document a window of its own (`--edit --only-windows` drives it) | DocumentWindowsTests |
 | 4.16 | The Reflow view (roadmap 4.16): View › Reflow (⌘3), the document's text as one column in place of the pages, Export's HTML in a WKWebView with page scripts off at `Reflow.address`, the look following the view's zoom and Dark Pages, the page kept both ways, links to the browser, read-only but for its commands (`Reflow`, `ReflowPosition`, ReflowView.swift; `--edit --only-reflow` drives it) | ReflowTests |
 | 4.2 | Find and Replace across the document (roadmap 4.2): Edit › Find › Find and Replace…, a sheet listing every match with its page and the words around it as it is typed, Replace and Replace All (one undo step, one save, what couldn't be replaced as asked listed) (`TextReplace`, `ContentEditor.paragraphsOf`/`replaceParagraphIn`, ReplaceSheet.swift) | TextReplaceTests (with `ReplacedTextReadsTheSameInPdfJs`, opt-in) |
+| 2.2b | Better OCR, the rest (roadmap 2.2's Mac line; Vision only, no Tesseract): photographed pages (PrintCore `Trapezoid`, `CurvedLines`, `ScanCleanup`'s `CleanupSteps`; Recognize Text's two check boxes); Make Text Editable (`EditableText`; Tools › Make Text Editable…, Scan & OCR's bar item); mixed languages (`MixedRecognizer`, Recognize Text's Second language); unsure words (`SuspectReasons.unsure`, `unsureBelow`) | PageWarpTests, EditableTextTests, MixedLanguagesTests |
 
 From the steps, besides the sections below:
 - D8: `release.sh --publish` rebuilds and re-notarizes, so the published DMG's SHA-256 differs from the one verified
@@ -2814,6 +2815,81 @@ under their names (3.2's links in the exports were already ported, 803da39c). Ma
   `GlyphOrder.Stretches`, `JoinLeftToRight`; the pdf.js reading test). About 3,300 lines of Windows changes with their
   tests (`TranslationLooksTests`, `TranslationTests`, `TranslationPdfJsTests`): one port of its own, in that order (the
   styled shaping first, as the right-to-left stretches build on it).
+
+### Better OCR, the rest (roadmap 2.2's Mac line)
+
+The owner's decision (2026-11-27): **no Tesseract on the Mac**. Everything reads with Apple's Vision (`VisionRecognizer`
+through `PageOcr` and `ScanText`), no new package. Tesseract's optional download stays Windows-only: Vision reads about
+30 languages where Tesseract reads over 100, but Vision skips no line on the OCR corpus (`VisionProbeTests`), so
+Windows' `MissedLines` and `ReadOnes` aren't needed either. The download (`TesseractStore`, `TesseractCatalog`,
+`TesseractRecognizer`, `Lzma`, `BoundedProcess`) can be ported if Mac users ask for a language Vision lacks: Inkvolt PDF
+for Mac is unsandboxed and signed with Developer ID, so it could keep the files in Application Support and run them.
+
+- **Photographed pages** (Windows' `Imaging/PageWarp.cs`, shared): PrintCore's `Trapezoid` (`Homography`, `Perspective`,
+  ported for Inkvolt Print's camera, 4.12) gains `Perspective.apply` and `PageWarp.fit`/`eval`; `CurvedLines` and
+  `LineCurve` are new (`Imaging/CurvedLines.swift`), so PrintCore builds them on the PC too; `ScanCleanup.clean(…steps:)`
+  takes `CleanupSteps` (`.trapezoid`, `.curvedLines`) and returns the `perspective` and `curve` it used, with Windows'
+  order (the trapezoid first; a page tilted up to 3° looked at for bent lines as it is, flattened in place of being turned;
+  else straightened, then flattened). PdfCore: `RecognizeOptions.trapezoid` and `curvedLines` (`steps`), `ScanFrame`'s
+  `perspective` and `curve` (a word mapped back through the warps takes its box's middle lines' length, height and
+  slant). The app: Recognize Text's two check boxes under cleaning (on by default, saved, off without cleaning), and
+  `AppSettings.ocrOptions()` gives Batch, Scan, export and a watched folder the same choices, as Windows'
+  `PageOcr.OptionsAsSet`. PageWarpTests ported with Windows' names (14 tests, 19 cases) over `PhotoCorpus` (Windows'
+  ocr-corpus PhotoCorpus.cs, the same seeds; `ScanCorpus.cleanPage` added); `WordsReadOnAStraightenedPhotoLandOnThePhoto`
+  without `RereadMissed` (the Mac has none). Limits as Windows': letters squeezed near a spine aren't widened, a page with
+  no desk around it has no edges for the trapezoid, two facing pages aren't split.
+- **Make Text Editable** (Windows' `EditableText`, `FontMatch`, `ScanLook`): PdfCore's `EditableText` (Ocr/EditableText.swift,
+  EditableTextLook.swift), the same planning (words by angle round the circle, `Angles`, then bands and lines; line boxes
+  told from word boxes; sizes by width unless the height disagrees; paragraphs by size, step and left edge, made even;
+  the family by class, measure, then look; each paragraph's face and ink colour; headings among the short list), the
+  same constants and thresholds; `TextLayer.remove` takes the invisible layer out, and its spaces now join words round
+  ±180° too. The app: Tools › Make Text Editable… and Scan & OCR's Make Text Editable on the bar (the pages, Keep the scan
+  showing behind the text, saved; with no recognized text, Recognize Text offered), one undo step (`MakeEditable.swift`);
+  `--only-ocr` makes the stand-in recognizer's words editable and checks Edit Text & Images can edit them. **Mac
+  differences:** a glyph's ink is Core Text's glyph box (Windows: HarfBuzz's extents), and the words to compare are drawn
+  by Core Graphics one by one at 40 pixels to the em (Windows draws them on one PDF page through MuPDF); the text is
+  written in Type 3 fonts from Core Text's outlines, as every Mac edit writes installed fonts (`Type3FontWriter`), under
+  paragraph editing's stand-in names (`InkFbE…`), so Edit Text & Images edits them (Windows embeds CIDFontType2
+  subsets); the families are Core Text's, a common family's metric twin (Helvetica, Times, Courier) counting as it (Arial,
+  Times New Roman, Courier New), and families made for another script (a Bengali, Thai or CJK family, by the languages
+  Core Text says it supports) aren't tried: macOS's "Bangla Sangam MN" has Helvetica-like Latin letters and read as
+  closer to the Helvetica page than Arial. The notice has no Edit Text button (the Mac's notice bar has only Undo); it
+  says how. EditableTextTests ported with Windows' names (10 tests, 11 cases; the speed test's limit is Windows' Debug
+  one, 10 s a page, as `swift test` builds for debugging).
+- **Mixed languages** (Windows' `MixedRecognizer`, `EitherSpelling`): PdfCore's `MixedRecognizer` reads the page with two
+  recognizers (Vision in one language each) and keeps each line from the reading that looks more like real words, the same
+  union of lines by place and the same plausibility (dictionary words, else the engine's confidence, garbage a tenth); its
+  `language` is both tags ("en-US+es-MX", Windows' `PageRecognizer.Language`), which the text layer now keeps (its first
+  line takes "+"), and `MacSpelling.of` answers with both dictionaries (the Suspect Words pane's suggestions too).
+  `TextRecognizer.read` gives words with their lines and confidence (`RecognizedWord`, Windows' shared type): Vision's
+  own lines, a default that puts a stand-in's words in lines by place. The app: Recognize Text's Second language (None,
+  or one of Vision's languages; only with a language chosen, as Vision detecting the language reads one), saved at once
+  (Windows saves its languages once installed, `PageOcr.Choose`; Vision needs nothing installed); `SavedOcr.reader()`
+  reads with it for Recognize Text, Batch, Scan, export, a watched folder, Compare and Redact by Pattern.
+  MixedLanguagesTests: TesseractTests.cs's "two languages" tests with Windows' names (the mixed recognizer's
+  `language` names both, adapted; no re-reader), and `wordsWithoutLinesArePutInLinesByPlace` (Mac only).
+  `OcrLanguages` (Windows' list of its languages then Tesseract's, and the plan of which engine reads what) has no Mac
+  counterpart: Vision's languages are the list.
+- **Words the engine was unsure of** (Windows: Tesseract's words under 60, `SuspectReasons.Unsure`): `SuspectReasons.unsure`
+  (16, Windows' value, so a layer reviewed on either platform reads the same), `TextRecognizer.unsureBelow` (Windows'
+  `SuspectWords.unsureBelow`, 60, by default), `ScanText` marking each word whose confidence is under it, the Suspect
+  Words pane's "the recognizer wasn't sure of it". **The threshold, from the corpus:** Vision's confidence is a line's (its
+  top candidate's), and at the accurate level with language correction it was 1.0 on every line of the OCR corpus and the
+  photographed pages: 6,152 words read right and 63 read wrong, all at 1.0 (`VisionProbeTests.visionConfidenceOnTheCorpus`,
+  opt-in, 2026-11-27). No threshold tells those apart, so Vision keeps Windows' 60: it marks the rare line Vision itself
+  scores low and nothing on the corpus. For the same reason the Mac still reads the page as scanned to compare (the
+  read-differently words): Windows skips that for an engine that scores each word (Tesseract), Vision scores none.
+  MixedLanguagesTests' `aWordTheEngineWasUnsureOfIsASuspectAndNothingIsReadAgain` (Windows' name, adapted: the comparison
+  stays).
+- **The corpus** (Windows' `pdf/tools/ocr-corpus` has no Mac tool; its Mac counterpart is `VisionProbeTests`, opt-in
+  `INKVOLTPDF_VISION_PROBE=1`, over the same generated pages). 2026-11-27, Vision cleaned (stage A), word error rate per
+  page against Windows' RESULTS.md per file (stage A): en-skew3-light 0.0 / 0.8 % (Windows 1.3 %), en-skew6-noisy 2.0 /
+  6.0 % (12.9 %), en-skew10-shaded 0.6 / 1.6 % (3.8 %), es-skew4-noisy 6.0 / 4.8 % (8.0 %), es-skew8-shaded 0.8 / 1.1 %
+  (4.3 %), en-turned 0.5 / 2.0 % (3.7 %); no line skipped. Photographed pages (`visionOnThePhotographedPages`, against
+  RESULTS-photos.md), stage A → straightened: en-trapezoid 0.3 → 0.0 % (Windows 1.6 → 0.8 %), es-trapezoid 3.0 → 3.0 %
+  (0.0 → 0.0 %), en-book 0.2 → 0.2 % (100 → 1.7 %), es-book 0.0 → 0.0 % (99.5 → 1.6 %): Vision reads a book's bent lines
+  well unstraightened, where Windows' recognizer read the page upside down; straightening is no worse on any file.
+  10-30 s a photo on the build Mac with other jobs running.
 
 ## Open decisions
 

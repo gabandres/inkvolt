@@ -16,6 +16,10 @@ WHATS-NEW.md necesita aquí su español (`PdfStringsTests` comprueba que los enc
 - Comparar archivos alinea una página escaneada a otro tamaño o girada un cuarto de vuelta (de lado o boca abajo) con la otra versión antes de mostrar lo que se ve distinto, así que la misma página ya no parece distinta por todas partes.
 - Comparar archivos endereza una página escaneada y la pone derecha antes de leer sus palabras, como Reconocer texto. Cuando no sabe hacia dónde va una página, la lee de las dos maneras y se queda con la lectura que tiene palabras reales en su idioma, así que una página escaneada boca abajo se compara por sus palabras.
 - Una página con una imagen diminuta hecha para descomprimir gigabytes (un PDF dañado o malicioso) ya no tarda segundos para luego decir «Esta página tardaba demasiado en leerse»: se muestra enseguida.
+- Reconocer texto endereza una página fotografiada en ángulo y aplana las líneas curvadas por el lomo de un libro antes de leerla, así que las fotos con el móvil y los libros abiertos se leen mucho mejor. Conserva las páginas limpias en lugar de los escaneos para que queden enderezadas. Las dos opciones vienen activadas y dejan como están las páginas que no las necesitan.
+- Hacer el texto editable (menú Herramientas, y Escanear y OCR en la barra) convierte el texto reconocido de una página escaneada en texto de verdad, con la fuente instalada más parecida a la del escaneo (también en cursiva, negrita o color), a su tamaño y en su sitio, para que puedas editar sus párrafos con Editar texto e imágenes. El escaneo se tapa detrás del texto con el color del propio papel, o queda a la vista si lo prefieres. Deshacer devuelve la página como estaba.
+- Páginas en dos idiomas: elige un segundo idioma en Reconocer texto. Cada línea se lee en el idioma que le corresponde.
+- Una palabra de la que el reconocimiento de texto no estaba seguro aparece entre las palabras dudosas para revisar.
 
 ## 1.13.0
 - Un PDF abierto con su contraseña mostraba las páginas en blanco (su texto se podía buscar y copiar). Ahora sus páginas se ven.

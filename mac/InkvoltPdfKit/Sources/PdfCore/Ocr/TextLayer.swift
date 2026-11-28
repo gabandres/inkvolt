@@ -124,6 +124,22 @@ public enum TextLayer {
         }
     }
 
+    /// Takes a page's Inkvolt text layer out: its stream from /Contents and the fonts only it drew with (Make Text
+    /// Editable, `EditableText`, puts real text in its place). False when the page has none.
+    @discardableResult
+    static func remove(_ doc: MuDoc, _ page: PObj) -> Bool {
+        guard let layer = findLayer(page) else { return false }
+        let resources = ContentEditor.ownDict(doc, page, "Resources", PageBoxes.inherited(page, "Resources"))
+        let fonts = ContentEditor.ownDict(doc, resources, "Font")
+        for key in fonts.keys where key.hasPrefix(fontPrefix) && layer.text.contains("/\(key) ") { fonts.remove(key) }
+        if let index = layer.index, let list = page["Contents"], list.isArray {
+            list.remove(at: index)
+        } else {
+            page.set("Contents", doc.addStream([], deflate: false))
+        }
+        return true
+    }
+
     /// Whether MuPDF finds any text on the page (a page that already has text needs no OCR).
     public static func hasText(_ engine: PdfEngine, _ page: Int, cancel: CancelToken? = nil) throws -> Bool {
         try engine.text(page, cancel: cancel).text.contains { !$0.isWhitespace }
@@ -293,7 +309,7 @@ public enum TextLayer {
         let words = all.filter(usable)
 
         var ops = marker
-        if let language, !language.isEmpty, language.allSatisfy({ ($0.isASCII && ($0.isLetter || $0.isNumber)) || $0 == "-" }) { ops += " " + language }
+        if let language, !language.isEmpty, language.allSatisfy({ ($0.isASCII && ($0.isLetter || $0.isNumber)) || $0 == "-" || $0 == "+" }) { ops += " " + language }
         ops += "\n"
         // The page's frame, so the boxes follow the page when it is turned or cropped later (frameOf).
         let b = PageBoxes.visibleBox(page)
@@ -316,7 +332,7 @@ public enum TextLayer {
 
             // An explicit space, stretched over the gap, to the next word on the same line (not across columns), measured
             // along the line: the next word's box as seen from this word's turned frame.
-            guard i + 1 < words.count, abs(words[i + 1].angle - w.angle) < 1 else { continue }
+            guard i + 1 < words.count, abs(Angles.difference(words[i + 1].angle, w.angle)) < 1 else { continue }
             let next = inFrameOf(w, words[i + 1])
             let overlap = min(w.rect.bottom, next.bottom) - max(w.rect.y, next.y)
             let gap = next.x - w.rect.right

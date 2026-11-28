@@ -26642,6 +26642,237 @@
           }
         }
       }
+    },
+    "Straighten pages photographed at an angle": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enderezar páginas fotografiadas en ángulo"
+          }
+        }
+      }
+    },
+    "A page photographed at an angle on a darker surface is turned back into a rectangle before recognizing. Pages whose four edges don't clearly show are left as they are.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una página fotografiada en ángulo sobre una superficie más oscura vuelve a ser un rectángulo antes de reconocerla. Las páginas cuyos cuatro bordes no se ven con claridad se dejan como están."
+          }
+        }
+      }
+    },
+    "Flatten lines bent by a book's spine": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aplanar las líneas curvadas por el lomo de un libro"
+          }
+        }
+      }
+    },
+    "Lines of text that curve towards the binding of an open book are made straight before recognizing. Pages whose lines are already straight are left as they are.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las líneas de texto que se curvan hacia el lomo de un libro abierto se enderezan antes de reconocerlas. Las páginas con líneas ya rectas se dejan como están."
+          }
+        }
+      }
+    },
+    "No recognized text": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay texto reconocido"
+          }
+        }
+      }
+    },
+    "These pages have no text from Recognize Text to make editable. Recognize their text first.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estas páginas no tienen texto de Reconocer texto que hacer editable. Reconoce su texto primero."
+          }
+        }
+      }
+    },
+    "The words Recognize Text found become real text, in the installed font closest to the scan's, at their size and place, so Edit Text & Images can change them. Check the suspect words first: they can't be reviewed afterwards. Undo puts the pages back.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las palabras que encontró Reconocer texto pasan a ser texto de verdad, con la fuente instalada más parecida a la del escaneo, a su tamaño y en su sitio, para que Editar texto e imágenes pueda cambiarlas. Revisa antes las palabras dudosas: después ya no se pueden revisar. Deshacer devuelve las páginas como estaban."
+          }
+        }
+      }
+    },
+    "All pages with recognized text": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Todas las páginas con texto reconocido"
+          }
+        }
+      }
+    },
+    "Keep the scan showing behind the text": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dejar ver el escaneo detrás del texto"
+          }
+        }
+      }
+    },
+    "Off: the scan is covered behind each line, in the paper's colour, so only the new text shows there. On: the scan stays as it is and the text is drawn over it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desactivado: el escaneo se tapa detrás de cada línea, con el color del papel, para que allí solo se vea el texto nuevo. Activado: el escaneo queda como está y el texto se dibuja encima."
+          }
+        }
+      }
+    },
+    "Make Editable": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hacer editable"
+          }
+        }
+      }
+    },
+    "Making text editable": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Haciendo editable el texto"
+          }
+        }
+      }
+    },
+    "Make text editable": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hacer el texto editable"
+          }
+        }
+      }
+    },
+    "Made {0} on {1} editable, in {2}. Click a paragraph with Edit Text & Images to change it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Texto editable: {0} en {1}, con {2}. Haz clic en un párrafo con Editar texto e imágenes para cambiarlo."
+          }
+        }
+      }
+    },
+    "{0} word": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} palabra"
+          }
+        }
+      }
+    },
+    "{0} words": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} palabras"
+          }
+        }
+      }
+    },
+    "{0} page": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} página"
+          }
+        }
+      }
+    },
+    "None [no second language]": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ninguno"
+          }
+        }
+      }
+    },
+    "Second language": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Segundo idioma"
+          }
+        }
+      }
+    },
+    "For pages in two languages. Each line is kept from the one that reads it better.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Para páginas en dos idiomas. Cada línea se toma del que la lee mejor."
+          }
+        }
+      }
+    },
+    "the recognizer wasn't sure of it": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "el reconocedor no estaba seguro"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

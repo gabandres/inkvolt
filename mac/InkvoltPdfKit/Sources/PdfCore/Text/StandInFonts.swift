@@ -52,6 +52,10 @@ enum StandInFonts {
         Family(name: "Andale Mono", kind: .mono, aliases: ["Andale Mono", "Lucida Console"]),
     ]
 
+    /// The common families with their class and the names they stand for (Make Text Editable tries them first, and takes
+    /// an alias, Helvetica, as its family, Arial).
+    static var commonFamilies: [(name: String, kind: Kind, aliases: [String])] { families.map { ($0.name, $0.kind, $0.aliases) } }
+
     private static let serifWords = [
         "Times", "Serif", "Roman", "NimbusRom", "Georgia", "Garamond", "Cambria", "Palatino", "Minion", "Caslon", "Baskerville", "Bodoni",
         "Century", "Cheltenham", "Constantia", "Didot", "Goudy", "Janson", "Sabon", "Utopia", "Charter", "Bookman", "Schoolbook", "Antiqua",
