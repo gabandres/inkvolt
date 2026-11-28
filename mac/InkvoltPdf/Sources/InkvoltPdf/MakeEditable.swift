@@ -97,7 +97,12 @@ extension DocumentWindowController {
             let words = made.words == 1 ? loc("{0} word", CoreLanguage.number(made.words)) : loc("{0} words", CoreLanguage.number(made.words))
             let onPages = made.pages == 1 ? loc("{0} page", CoreLanguage.number(made.pages)) : loc("{0} pages", CoreLanguage.number(made.pages))
             notify(loc("Made {0} on {1} editable, in {2}. Click a paragraph with Edit Text & Images to change it.", words, onPages,
-                       made.fonts.joined(separator: ", ")), canUndo: true)
+                       made.fonts.joined(separator: ", ")),
+                   // Windows' Edit Text button: Edit Text & Images, to click a paragraph (unless it is on already).
+                   links: [(loc("Edit Text"), { [weak self] in
+                       guard let self, self.pages.tool != .editContent else { return }
+                       self.choose(.editContent)
+                   })])
         case .done?, .noChange?:
             let alert = NSAlert()
             alert.messageText = loc("No recognized text")

@@ -2853,8 +2853,9 @@ for Mac is unsandboxed and signed with Developer ID, so it could keep the files 
   subsets); the families are Core Text's, a common family's metric twin (Helvetica, Times, Courier) counting as it (Arial,
   Times New Roman, Courier New), and families made for another script (a Bengali, Thai or CJK family, by the languages
   Core Text says it supports) aren't tried: macOS's "Bangla Sangam MN" has Helvetica-like Latin letters and read as
-  closer to the Helvetica page than Arial. The notice has no Edit Text button (the Mac's notice bar has only Undo); it
-  says how. EditableTextTests ported with Windows' names (10 tests, 11 cases; the speed test's limit is Windows' Debug
+  closer to the Helvetica page than Arial. The notice offers Edit Text, as Windows' button on it (Edit Text & Images
+  turned on; the Mac's notice bar shows its actions as links after the text, no Undo there, as Windows' notice has only
+  that button); `--only-ocr` clicks it. EditableTextTests ported with Windows' names (10 tests, 11 cases; the speed test's limit is Windows' Debug
   one, 10 s a page, as `swift test` builds for debugging).
 - **Mixed languages** (Windows' `MixedRecognizer`, `EitherSpelling`): PdfCore's `MixedRecognizer` reads the page with two
   recognizers (Vision in one language each) and keeps each line from the reading that looks more like real words, the same
@@ -2868,8 +2869,11 @@ for Mac is unsandboxed and signed with Developer ID, so it could keep the files 
   reads with it for Recognize Text, Batch, Scan, export, a watched folder, Compare and Redact by Pattern.
   MixedLanguagesTests: TesseractTests.cs's "two languages" tests with Windows' names (the mixed recognizer's
   `language` names both, adapted; no re-reader), and `wordsWithoutLinesArePutInLinesByPlace` (Mac only).
-  `OcrLanguages` (Windows' list of its languages then Tesseract's, and the plan of which engine reads what) has no Mac
-  counterpart: Vision's languages are the list.
+  `OcrLanguages` (Windows' list of its installed OCR languages, in Windows' order, then Tesseract's to download, sorted;
+  `Find`, a saved tag no longer offered taken as the one reading the same language; `Plan`, which engine reads a choice
+  and what to download) has no Mac counterpart: Vision's languages, in Vision's order, are the whole list (as Windows'
+  own come in Windows' order), there is nothing to download or plan, and a saved tag always comes from that list. What a
+  person sees is the same but Windows' Tesseract entries and the Mac's "Detect the language".
 - **Words the engine was unsure of** (Windows: Tesseract's words under 60, `SuspectReasons.Unsure`): `SuspectReasons.unsure`
   (16, Windows' value, so a layer reviewed on either platform reads the same), `TextRecognizer.unsureBelow` (Windows'
   `SuspectWords.unsureBelow`, 60, by default), `ScanText` marking each word whose confidence is under it, the Suspect
