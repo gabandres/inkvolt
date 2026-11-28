@@ -587,6 +587,7 @@ static fz_device *inkv_new_draw_guard(fz_context *ctx, fz_device *draw, inkv_coo
 struct inkv_doc {
     fz_document *doc;
     inkv_source *src; // the stream it reads, NULL for a document made here
+    fz_stream *stream; // src's stream, kept while the document lives (not every format's document keeps it)
     int count;
     int capacity;
     int loaded;
@@ -1015,12 +1016,18 @@ static inkv_doc *inkv_open(fz_context *ctx, fz_stream *stream, inkv_source *src,
     fz_try(ctx) {
         result = fz_malloc_struct(ctx, inkv_doc);
         result->doc = fz_open_document_with_stream(ctx, magic, stream);
-        result->src = src; // kept alive by the document, which holds the stream
+        // A PDF's document holds the stream, but a picture's or a comic book's reads what it needs and drops it: kept
+        // here, so `src` (which inkv_begin and inkv_end write to) lives as long as the document does.
+        result->stream = fz_keep_stream(ctx, stream);
+        result->src = src;
         inkv_setup(ctx, result, cache);
     }
     fz_catch(ctx) {
         inkv_error(ctx, err);
-        if (result) fz_drop_document(ctx, result->doc);
+        if (result) {
+            fz_drop_document(ctx, result->doc);
+            fz_drop_stream(ctx, result->stream);
+        }
         fz_free(ctx, result);
         return NULL;
     }
@@ -1103,6 +1110,7 @@ void inkv_drop_doc(void *vctx, inkv_doc *d) {
     fz_free(ctx, d->checked);
     inkv_forget_password(ctx, d);
     fz_drop_document(ctx, d->doc);
+    fz_drop_stream(ctx, d->stream);
     fz_free(ctx, d);
 }
 
@@ -2931,18 +2939,15 @@ struct inkv_pdf_writer {
 inkv_pdf_writer *inkv_pdf_writer_new(void *vctx, char *err) {
     fz_context *ctx = vctx;
     inkv_pdf_writer *w = NULL;
-    fz_output *out = NULL;
     fz_var(w);
-    fz_var(out);
     fz_try(ctx) {
         w = fz_malloc_struct(ctx, inkv_pdf_writer);
         w->buffer = fz_new_buffer(ctx, 64 << 10);
-        out = fz_new_output_with_buffer(ctx, w->buffer);
+        // The writer's from here, failing too: fz_new_pdf_writer_with_output drops it when it throws.
+        fz_output *out = fz_new_output_with_buffer(ctx, w->buffer);
         w->writer = fz_new_pdf_writer_with_output(ctx, out, "compress");
-        out = NULL; // the writer's now
     }
     fz_catch(ctx) {
-        fz_drop_output(ctx, out);
         if (w) fz_drop_buffer(ctx, w->buffer);
         fz_free(ctx, w);
         inkv_error(ctx, err);

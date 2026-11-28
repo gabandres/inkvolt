@@ -1,0 +1,44 @@
+Inkvolt's patch to MuPDF 1.25.2 (applied by mac/Vendor/mupdf/build.sh; the Mac only: Windows uses MuPDFCore's
+prebuilt MuPDF). Why: HarfBuzz's allocations find their MuPDF context through one global (fz_hb_secret), which
+fz_hb_lock sets and fz_hb_unlock clears, under the calling context's own FreeType lock only. Inkvolt makes a context
+per document (fz_new_context, its own locks), so two FB2 or EPUB books laid out at once (or two rich-text appearances,
+fz_story) were inside fz_hb_lock together: the first to unlock cleared the global under the other, whose next HarfBuzz
+allocation used a NULL context (SIGSEGV: CI's pdf job, "Exited with unexpected signal code 11";
+OtherFormatsTests' fictionBooksLaidOutOnSeveralThreadsAtOnce), or another context's allocator. The patch keeps the
+global per thread (_Thread_local): each thread's lock sets and clears its own. Nothing else in MuPDF changes. To report
+upstream: harfbuzz-context-per-thread.md (drop this patch once a MuPDF release has a fix and build.sh moves to it).
+
+diff --git a/source/fitz/harfbuzz.c b/source/fitz/harfbuzz.c
+--- a/source/fitz/harfbuzz.c
++++ b/source/fitz/harfbuzz.c
+@@ -109,20 +109,19 @@
+  * about this.
+  */
+
+-/* Potentially we can write different versions
+- * of get_context and set_context for different
+- * threading systems.
++/* The context of the thread that holds fz_hb_lock.
+  *
+- * This simple version relies on harfbuzz never
+- * trying to make 2 allocations at once on
+- * different threads. The only way that can happen
+- * is when one of those other threads is someone
+- * outside MuPDF calling harfbuzz while MuPDF
+- * is running. This will cause us such huge
+- * problems that for now, we'll just forbid it.
++ * Kept per thread (Inkvolt's patch): fz_hb_lock
++ * takes only the calling context's FreeType lock,
++ * so two contexts that don't share locks (two
++ * fz_new_context, each used on its own thread)
++ * can be inside it at once. With one global, the
++ * first to unlock set it to NULL under the other,
++ * whose next harfbuzz allocation then used a NULL
++ * context (a crash), or the other's allocator.
+  */
+
+-static fz_context *fz_hb_secret = NULL;
++static _Thread_local fz_context *fz_hb_secret = NULL;
+
+ static void set_hb_context(fz_context *ctx)
+ {
