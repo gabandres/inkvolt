@@ -258,16 +258,7 @@ enum FinderConvert {
 
     /// `work` off the main thread; Cancel ends the wait (the work is left to finish, its result dropped).
     private static func off<T: Sendable>(_ cancel: CancelToken, _ work: @escaping @Sendable () throws -> T) async throws -> T {
-        let once = ResumeOnce<T>()
-        return try await withCheckedThrowingContinuation { c in
-            once.continuation = c
-            let id = cancel.register { once.finish(.failure(CancellationError())) }
-            DispatchQueue.global(qos: .userInitiated).async {
-                let result = Result { try work() }
-                cancel.unregister(id)
-                once.finish(result)
-            }
-        }
+        try await cancel.off(work)
     }
 
     /// Finder's "Convert to Word with Inkvolt PDF" for one file: the one-click Convert without a window, as Windows'
@@ -289,7 +280,8 @@ enum FinderConvert {
         while true {
             let pw = password
             do {
-                session = try await off(cancel) { try SessionBox(DocumentSession.open(pdf, password: pw)) }.session
+                // A session opened after Cancel won (its bytes and MuPDF context) is closed, not kept with no owner.
+                session = try await cancel.off({ try SessionBox(DocumentSession.open(pdf, password: pw)) }, discard: { $0.session.close() }).session
                 break
             } catch let e as PasswordRequired {
                 // Cancelling one password prompt asks for no more in this selection's conversions (ConvertAnswers).
@@ -365,19 +357,6 @@ enum FinderConvert {
 }
 
 /// A continuation resumed once, by whichever comes first: the work's result or Cancel.
-private final class ResumeOnce<T: Sendable>: @unchecked Sendable {
-    private let lock = NSLock()
-    var continuation: CheckedContinuation<T, Error>?
-
-    func finish(_ result: Result<T, Error>) {
-        lock.lock()
-        let c = continuation
-        continuation = nil
-        lock.unlock()
-        c?.resume(with: result)
-    }
-}
-
 /// Finder's Services entry, "Convert to Word with Inkvolt PDF" (Info.plist's NSServices, message `convertToWord`): the PDFs
 /// selected in Finder, as file URLs on the pasteboard, become one request. macOS starts the app when it isn't running and
 /// hands every selected file to this one copy.
