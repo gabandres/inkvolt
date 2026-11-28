@@ -660,6 +660,9 @@ final class AppModel {
     /// macOS lists the scanner now (connected and on).
     func isListed(_ s: SystemScanner) -> Bool { scannerList?.contains { $0.id == s.id } == true }
 
+    /// Every ImageCaptureCore session still open is closed (the app quits).
+    func closeScannerSessions() { systemScanners?.closeSessions() }
+
     // MARK: Scanner sharing (roadmap 3.1)
 
     /// The scanner shared on the network: off until the person turns it on; its choice kept in the state file (in demo mode,

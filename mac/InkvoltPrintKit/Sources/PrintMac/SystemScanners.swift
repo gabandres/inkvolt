@@ -49,6 +49,11 @@ public final class SystemScanners: NSObject, @preconcurrency ICDeviceBrowserDele
 
     public func stop() { browser.stop() }
 
+    /// Every session still open is closed now (the app quits): the scanner takes the next one at once.
+    public func closeSessions() {
+        for driver in drivers.values { driver.closeNow() }
+    }
+
     /// The scanner to scan with (a session is opened when it's first used): the same one while the device is listed.
     public func device(_ id: String) -> SystemScanDevice? {
         if let kept = drivers[id] { return kept }
@@ -118,14 +123,32 @@ public final class SystemScanners: NSObject, @preconcurrency ICDeviceBrowserDele
     }
 }
 
-/// One ImageCaptureCore scanner as the Scan tab drives it: its flatbed and feeder described as eSCL describes a scanner,
-/// and a scan that yields each page as JPEG. A session is opened on first use and kept.
+/// One ImageCaptureCore scanner as the Scan tab (and a shared scanner) drives it: its flatbed and feeder described as eSCL
+/// describes a scanner, and a scan that yields each page as JPEG. The session is opened for each use (reading what it
+/// offers, a scan) and closed after it (`ScannerSessionUse`), so the device takes the next one at once; the unit is
+/// selected and waited for until it says its size and resolutions before anything is asked of it; what the scanner says
+/// is PrintCore's `ImageCaptureJob` (a scan that ends without a page says so; one that says nothing for 3 minutes is
+/// given up).
 @MainActor
 public final class SystemScanDevice: NSObject, ScanDevice, @preconcurrency ICScannerDeviceDelegate {
     private let scanner: ICScannerDevice
-    private var opened: CheckedContinuation<Void, any Error>?
-    private var selected: CheckedContinuation<Void, any Error>?
+    private var opened: OnceResult<String?>?
+    private var selected: OnceResult<String?>?
+    private var closed: OnceResult<Bool>?
+    private var use = ScannerSessionUse()
+    private var isOpen = false
+    /// A close under way: the next open waits for it (opening while the scanner still closes fails with -9921).
+    private var closing: Task<Void, Never>?
+    /// The unit selected and seen ready in this session.
+    private var readyUnit: ICScannerFunctionalUnitType?
+    /// Units the scanner has said it selected in this session (its own first one after the session opens, then ours).
+    private var selections = 0
+    private var job: ImageCaptureJob?
     private var pages: AsyncThrowingStream<[UInt8], any Error>.Continuation?
+    private var watchdog: Task<Void, Never>?
+    private var folder: URL?
+    /// Told each step and each word from ImageCaptureCore, in plain words (the report's `--ica-scan`); nil: nothing traced.
+    public var trace: ((String) -> Void)?
 
     init(_ scanner: ICScannerDevice) {
         self.scanner = scanner
@@ -136,22 +159,26 @@ public final class SystemScanDevice: NSObject, ScanDevice, @preconcurrency ICSca
     // MARK: ScanDevice
 
     public func capabilities() async throws -> ScannerCapabilities? {
-        try await open()
-        // The units come once the scanner says it's available, a moment after the session opens.
-        for _ in 0..<50 where scanner.availableFunctionalUnitTypes.isEmpty { try await Task.sleep(for: .milliseconds(100)) }
-        let types = scanner.availableFunctionalUnitTypes.compactMap { ICScannerFunctionalUnitType(rawValue: $0.uintValue) }
-        if types.isEmpty { throw ScanError(loc("The scanner offers no glass or feeder.")) }
-        var platen: InputCaps?, adf: InputCaps?, duplex = false
-        for type in types where type == .flatbed || type == .documentFeeder {
-            try await select(type)
-            let unit = scanner.selectedFunctionalUnit
-            let caps = Self.caps(unit)
-            if type == .flatbed { platen = caps } else {
-                adf = caps
-                duplex = (unit as? ICScannerFunctionalUnitDocumentFeeder)?.supportsDuplexScanning ?? false
+        try await beginUse()
+        do {
+            let types = scanner.availableFunctionalUnitTypes.compactMap { ICScannerFunctionalUnitType(rawValue: $0.uintValue) }
+            if types.isEmpty { throw ScanError(loc("The scanner offers no glass or feeder.")) }
+            var platen: InputCaps?, adf: InputCaps?, duplex = false
+            for type in types where type == .flatbed || type == .documentFeeder {
+                try await select(type)
+                let unit = scanner.selectedFunctionalUnit
+                let caps = Self.caps(unit)
+                if type == .flatbed { platen = caps } else {
+                    adf = caps
+                    duplex = (unit as? ICScannerFunctionalUnitDocumentFeeder)?.supportsDuplexScanning ?? false
+                }
             }
+            await endUse()
+            return ScannerCapabilities(makeAndModel: scanner.name, platen: platen, adf: adf, adfDuplex: duplex)
+        } catch {
+            await endUse()
+            throw error
         }
-        return ScannerCapabilities(makeAndModel: scanner.name, platen: platen, adf: adf, adfDuplex: duplex)
     }
 
     nonisolated public func scan(_ request: ScanRequest) -> AsyncThrowingStream<[UInt8], any Error> {
@@ -165,16 +192,38 @@ public final class SystemScanDevice: NSObject, ScanDevice, @preconcurrency ICSca
             }
             continuation.onTermination = { _ in
                 task.cancel()
-                Task { @MainActor in self.scanner.cancelScan() }
+                Task { @MainActor in self.stopped(continuation) }
             }
         }
     }
 
+    /// The reader stopped (or the scan ended): a scan still running is asked to stop, and its session let go.
+    private func stopped(_ continuation: AsyncThrowingStream<[UInt8], any Error>.Continuation) {
+        guard job != nil, job?.isOver == false else { return }
+        trace?("stopped by the reader")
+        scanner.cancelScan()
+        act(job?.timedOut().map { _ in .finish(loc("The scan was stopped.")) } ?? [])
+    }
+
     private func run(_ request: ScanRequest, _ continuation: AsyncThrowingStream<[UInt8], any Error>.Continuation) async throws {
         // One scan at a time on a device: a second would take the first one's pages.
-        if pages != nil { throw ScanError(loc("Someone else is using the scanner. Try again in a moment.")) }
-        try await open()
-        try await select(request.source == .platen ? .flatbed : .documentFeeder)
+        if job != nil { throw ScanError(loc("Someone else is using the scanner. Try again in a moment.")) }
+        job = ImageCaptureJob()
+        pages = continuation
+        do {
+            try await beginUse()
+        } catch {
+            job = nil
+            pages = nil
+            throw error
+        }
+        do {
+            try await select(request.source == .platen ? .flatbed : .documentFeeder)
+            try Task.checkCancellation()
+        } catch {
+            act([.finish(error is CancellationError ? loc("The scan was stopped.") : (error as? ScanError)?.description ?? Self.words(error))])
+            return
+        }
         let unit = scanner.selectedFunctionalUnit
         unit.measurementUnit = .inches
         let resolutions = Array(unit.supportedResolutions)
@@ -190,34 +239,159 @@ public final class SystemScanDevice: NSObject, ScanDevice, @preconcurrency ICSca
             if feeder.supportsDuplexScanning { feeder.duplexScanningEnabled = request.source == .adfDuplex }
         }
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("system-scan-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        do {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        } catch {
+            act([.finish(loc("The scan couldn't start: {0}", error.localizedDescription))])
+            return
+        }
         scanner.transferMode = .fileBased
         scanner.downloadsDirectory = folder
         scanner.documentName = "page"
         scanner.documentUTI = UTType.jpeg.identifier
-        pages = continuation
+        self.folder = folder
+        trace?("scan: unit \(unit.type.rawValue), \(unit.resolution) dpi, \(unit.pixelDataType.rawValue)/\(unit.bitDepth.rawValue), area \(unit.scanArea), "
+            + "physical \(size), transfer \(scanner.transferMode.rawValue), UTI \(scanner.documentUTI)")
+        startWatchdog()
         scanner.requestScan()
+    }
+
+    /// Gives the scan up after `ImageCaptureJob.quietLimit` without a page or its end (started again at each page).
+    private func startWatchdog() {
+        watchdog?.cancel()
+        watchdog = Task { [weak self] in
+            guard (try? await Task.sleep(for: ImageCaptureJob.quietLimit)) != nil, let self else { return }
+            self.trace?("no word from the scanner for \(ImageCaptureJob.quietLimit): given up")
+            self.scanner.cancelScan()
+            self.act(self.job?.timedOut() ?? [])
+        }
+    }
+
+    /// Does what the job says: a page handed on, or the scan ended (its reason as the error) and the session let go.
+    private func act(_ actions: [ImageCaptureJob.Action]) {
+        for action in actions {
+            switch action {
+            case .yield(let page):
+                pages?.yield(page)
+                startWatchdog()
+            case .finish(let reason):
+                watchdog?.cancel()
+                watchdog = nil
+                if let reason { pages?.finish(throwing: ScanError(reason)) } else { pages?.finish() }
+                pages = nil
+                job = nil
+                if let folder { try? FileManager.default.removeItem(at: folder) }
+                folder = nil
+                Task { await self.endUse() }
+            }
+        }
     }
 
     // MARK: Session
 
-    private var isOpen = false
-
-    private func open() async throws {
-        if isOpen { return }
-        try await withCheckedThrowingContinuation { (c: CheckedContinuation<Void, any Error>) in
-            opened = c
-            scanner.requestOpenSession()
+    /// One more use of the session: opened (and its units waited for) for the first.
+    private func beginUse() async throws {
+        guard use.begin() else { return }
+        do {
+            try await openSession()
+        } catch {
+            _ = use.end()
+            throw error
         }
-        isOpen = true
     }
 
-    private func select(_ type: ICScannerFunctionalUnitType) async throws {
-        if scanner.selectedFunctionalUnit.type == type { return }
-        try await withCheckedThrowingContinuation { (c: CheckedContinuation<Void, any Error>) in
-            selected = c
-            scanner.requestSelect(type)
+    /// One use done: the session is closed after the last.
+    private func endUse() async {
+        guard use.end() else { return }
+        let close = Task { await self.closeSession() }
+        closing = close
+        await close.value
+        if closing == close { closing = nil }
+    }
+
+    private func openSession() async throws {
+        if let closing { await closing.value }
+        if isOpen { return }
+        let once = OnceResult<String?>()
+        opened = once
+        send { s in s.requestOpenSession() }
+        let error = await wait(once, seconds: 30, timedOut: loc("The scanner didn't answer. Check that it's on and connected."))
+        opened = nil
+        if let error { throw ScanError(error) }
+        isOpen = true
+        readyUnit = nil
+        // The units come once the scanner says it's available, a moment after the session opens; then it says which one
+        // it selected itself. Selecting before that is overtaken by it (a network all-in-one's scan then never started).
+        for _ in 0..<50 where scanner.availableFunctionalUnitTypes.isEmpty || selections == 0 { try await Task.sleep(for: .milliseconds(100)) }
+    }
+
+    /// Closes the session (at most 5 seconds' wait for the scanner to say so).
+    private func closeSession() async {
+        guard isOpen else { return }
+        isOpen = false
+        readyUnit = nil
+        selections = 0
+        let once = OnceResult<Bool>()
+        closed = once
+        send { s in s.requestCloseSession() }
+        let timer = Task {
+            try? await Task.sleep(for: .seconds(5))
+            once.finish(false)
         }
+        _ = await withCheckedContinuation { (c: CheckedContinuation<Bool, Never>) in once.start(c) }
+        timer.cancel()
+        closed = nil
+    }
+
+    /// Asks the scanner from a synchronous closure: in an async function Swift would pick ImageCaptureCore's async
+    /// overloads, which answer through their own completion instead of the delegate.
+    private func send(_ ask: (ICScannerDevice) -> Void) { ask(scanner) }
+
+    /// Closes the session now without waiting (the app quits).
+    public func closeNow() {
+        guard isOpen else { return }
+        isOpen = false
+        if job != nil { scanner.cancelScan() }
+        scanner.requestCloseSession()
+    }
+
+    /// Selects `type` and waits until it says its size and resolutions: right after a session opens the selected unit is
+    /// empty even when it's already the type wanted, and a scan asked of it never ends.
+    private func select(_ type: ICScannerFunctionalUnitType) async throws {
+        if scanner.selectedFunctionalUnit.type == type, readyUnit == type || Self.ready(scanner.selectedFunctionalUnit) {
+            readyUnit = type
+            return
+        }
+        let once = OnceResult<String?>()
+        selected = once
+        scanner.requestSelect(type)
+        let error = await wait(once, seconds: 15, timedOut: loc("The scanner didn't answer. Check that it's on and connected."))
+        selected = nil
+        if let error { throw ScanError(error) }
+        for _ in 0..<50 where !Self.ready(scanner.selectedFunctionalUnit) { try await Task.sleep(for: .milliseconds(100)) }
+        let unit = scanner.selectedFunctionalUnit
+        guard unit.type == type, Self.ready(unit) else {
+            trace?("unit \(type.rawValue) not ready: \(unit.type.rawValue), \(unit.physicalSize), \(unit.supportedResolutions.count) resolutions")
+            throw ScanError(loc("The scanner didn't say what its glass or feeder offers. Try again in a moment."))
+        }
+        readyUnit = type
+    }
+
+    private static func ready(_ unit: ICScannerFunctionalUnit) -> Bool {
+        unit.measurementUnit = .inches
+        return ImageCaptureJob.unitReady(width: Double(unit.physicalSize.width), height: Double(unit.physicalSize.height),
+                                         resolutions: unit.supportedResolutions.count)
+    }
+
+    /// The scanner's answer (nil: done, else its error in words), or `timedOut` after `seconds`.
+    private func wait(_ once: OnceResult<String?>, seconds: Int, timedOut: String) async -> String? {
+        let timer = Task {
+            try? await Task.sleep(for: .seconds(seconds))
+            once.finish(timedOut)
+        }
+        let result = await withCheckedContinuation { (c: CheckedContinuation<String?, Never>) in once.start(c) }
+        timer.cancel()
+        return result
     }
 
     /// A unit as eSCL would describe it: sizes in 1/300 inch, its resolutions, colour and grey.
@@ -233,41 +407,66 @@ public final class SystemScanDevice: NSObject, ScanDevice, @preconcurrency ICSca
     // MARK: ICScannerDeviceDelegate
 
     public func device(_ device: ICDevice, didOpenSessionWithError error: (any Error)?) {
-        if let error { opened?.resume(throwing: error) } else { opened?.resume() }
-        opened = nil
+        trace?("session opened: \(error.map { "\($0)" } ?? "ok")")
+        opened?.finish(error.map(Self.words))
     }
 
     public func scannerDevice(_ scanner: ICScannerDevice, didSelect functionalUnit: ICScannerFunctionalUnit, error: (any Error)?) {
-        if let error { selected?.resume(throwing: error) } else { selected?.resume() }
-        selected = nil
+        trace?("selected unit \(functionalUnit.type.rawValue): \(error.map { "\($0)" } ?? "ok")")
+        selections += 1
+        selected?.finish(error.map(Self.words))
     }
 
     public func scannerDevice(_ scanner: ICScannerDevice, didScanTo url: URL) {
-        switch Self.pageFile(url) {
-        case .page(let page):
-            pages?.yield(page)
-        case .tooLarge:
-            pages?.finish(throwing: ScanError(loc("The scanner sent a page too large to read.")))
-            pages = nil
-        case .unreadable:
-            // Never one page short without a word: the scan ends and says so.
-            pages?.finish(throwing: ScanError(loc("The scanner sent a page that couldn't be read.")))
-            pages = nil
+        trace?("page file \(url.lastPathComponent): \((try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize.map(String.init) ?? "no size") bytes")
+        let event: ImageCaptureJob.Event = switch Self.pageFile(url) {
+        case .page(let page): .page(page)
+        case .tooLarge: .pageTooLarge
+        case .unreadable: .pageUnreadable
         }
         try? FileManager.default.removeItem(at: url)
+        act(job?.handle(event) ?? [])
     }
 
     public func scannerDevice(_ scanner: ICScannerDevice, didCompleteScanWithError error: (any Error)?) {
-        if let error { pages?.finish(throwing: ScanError(Self.words(error))) } else { pages?.finish() }
-        pages = nil
+        let left = folder.flatMap { try? FileManager.default.contentsOfDirectory(atPath: $0.path) } ?? []
+        trace?("scan complete: \(error.map { "\($0)" } ?? "no error"); in the folder: \(left)")
+        // A page the scanner wrote without saying so is still the scan's.
+        for name in left.sorted() {
+            guard let folder else { break }
+            scannerDevice(scanner, didScanTo: folder.appendingPathComponent(name))
+        }
+        act(job?.handle(.completed(error.map(Self.words))) ?? [])
     }
 
-    public func device(_ device: ICDevice, didCloseSessionWithError error: (any Error)?) { isOpen = false }
+    public func device(_ device: ICDevice, didCloseSessionWithError error: (any Error)?) {
+        trace?("session closed: \(error.map { "\($0)" } ?? "ok")")
+        isOpen = false
+        readyUnit = nil
+        closed?.finish(true)
+    }
+
+    public func scannerDevice(_ scanner: ICScannerDevice, didScanTo data: ICScannerBandData) {
+        trace?("band: rows \(data.dataStartRow)+\(data.dataNumRows) of \(data.fullImageHeight), \(data.dataSize) bytes")
+    }
+
+    public func device(_ device: ICDevice, didEncounterError error: (any Error)?) {
+        trace?("device error: \(error.map { "\($0)" } ?? "none")")
+    }
+
+    public func device(_ device: ICDevice, didReceiveStatusInformation status: [ICDeviceStatus: Any]) {
+        if !status.isEmpty { trace?("status: \(status.map { "\($0.key.rawValue)=\($0.value)" }.sorted())") }
+    }
+
+    public func scannerDeviceDidBecomeAvailable(_ scanner: ICScannerDevice) { trace?("scanner available") }
 
     public func didRemove(_ device: ICDevice) {
         isOpen = false
-        pages?.finish(throwing: ScanError(loc("The scanner was disconnected.")))
-        pages = nil
+        readyUnit = nil
+        opened?.finish(loc("The scanner was disconnected."))
+        selected?.finish(loc("The scanner was disconnected."))
+        closed?.finish(true)
+        act(job?.handle(.removed) ?? [])
     }
 
     /// A page file ImageCapture wrote: its bytes, too large, or unreadable.

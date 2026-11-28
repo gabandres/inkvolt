@@ -95,7 +95,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     /// With the menu bar item, the app keeps running when the window closes; without it, it quits.
     /// A clean exit: scanned pages not saved go (the app asks first while some wait, below).
     func applicationWillTerminate(_ notification: Notification) {
-        MainActor.assumeIsolated { AppModel.shared.scanStore?.close() }
+        MainActor.assumeIsolated {
+            AppModel.shared.scanStore?.close()
+            AppModel.shared.closeScannerSessions() // ImageCaptureCore sessions left open hold a network scanner for minutes
+        }
         // A shared scanner's port closes and its announcement ends (macOS says goodbye on the network), within 2 seconds.
         let closing: (@Sendable () async -> Void)? = MainActor.assumeIsolated { AppModel.shared.sharingCloser() }
         guard let closing else { return }

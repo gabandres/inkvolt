@@ -12715,6 +12715,50 @@
           }
         }
       }
+    },
+    "The scanner finished without sending a page. Check that it's on and that the page is on the glass or in the feeder, then try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El escáner terminó sin enviar ninguna página. Comprueba que esté encendido y que la página esté en el cristal o en el alimentador, y vuelve a intentarlo."
+          }
+        }
+      }
+    },
+    "The scanner stopped answering during the scan. Check that it's on, then try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El escáner dejó de responder durante el escaneo. Comprueba que esté encendido y vuelve a intentarlo."
+          }
+        }
+      }
+    },
+    "The scanner didn't say what its glass or feeder offers. Try again in a moment.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El escáner no indicó qué ofrecen su cristal o su alimentador. Vuelve a intentarlo en un momento."
+          }
+        }
+      }
+    },
+    "The scan couldn't start: {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo iniciar el escaneo: {0}"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

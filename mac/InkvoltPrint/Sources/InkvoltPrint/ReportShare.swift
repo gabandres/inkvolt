@@ -40,7 +40,10 @@ extension Report {
     private static func systemShareCheck(name: String?, hold: Int, selfScan: Bool) async -> [String] {
         let browse = SystemScanners(network: true) { _ in }
         browse.start()
-        defer { browse.stop() }
+        defer {
+            browse.closeSessions()
+            browse.stop()
+        }
         try? await Task.sleep(for: .seconds(6))
         let all = browse.allDevices
         var lines = ["share scanner: ICC lists \(all.count) scanner(s)"]

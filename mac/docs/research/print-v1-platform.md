@@ -42,7 +42,12 @@ Apple doc pages render with JavaScript. They were read through their JSON form
   own folder (outside /Applications, never asked about) got `kDNSServiceErr_PolicyDenied` (-65570) at once, and served
   all the same (checked on the build Mac, 2026-11-27). ImageCaptureCore opens a session on a network all-in-one Apple's
   AirScan driver reaches (the M234dw: glass, 200, 300 and 600 dpi, color and grey) from the sandboxed app, with
-  `device.usb` and network client only. **UNVERIFIED:** whether the /Applications copy, with Local Network allowed,
+  `device.usb` and network client only, and scans its glass into a JPEG file in the app's temporary folder (file-based
+  transfer). Learned with it (2026-11-27): after `requestOpenSession` the selected unit is empty (no size, no
+  resolution) until the scanner announces its own selection, 2 to 10 s later; a scan asked before that never ends; a
+  session left open makes it refuse others for minutes (-21345), and opening while a close is still under way fails
+  (-9921). In an async function Swift resolves `requestOpenSession()`/`requestCloseSession()` to the framework's async
+  overloads, which don't go through the delegate. **UNVERIFIED:** whether the /Applications copy, with Local Network allowed,
   announces (expected), and whether macOS's firewall, with "Automatically allow downloaded signed software" on, lets a
   development-signed build take connections from the LAN without asking (loopback needs no permission).
 

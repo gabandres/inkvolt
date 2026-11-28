@@ -167,6 +167,11 @@ enum Report {
                 let hold = args.firstIndex(of: "--hold").flatMap { $0 + 1 < args.count ? Int(args[$0 + 1]) : nil } ?? 0
                 cancelled += await shareScannerCheck(model, name: name, hold: hold, selfScan: args.contains("--self-scan"))
             }
+            if let i = args.firstIndex(of: "--ica-scan") {
+                let name = i + 1 < args.count && !args[i + 1].hasPrefix("--") ? args[i + 1] : nil
+                let times = args.firstIndex(of: "--times").flatMap { $0 + 1 < args.count ? Int(args[$0 + 1]) : nil } ?? 1
+                cancelled += await icaScanCheck(name: name, times: times)
+            }
             cancelled += proCheck(args)
             try? await Task.sleep(for: .seconds(wait))
             cancelled.append(handOffLine(model))
@@ -446,6 +451,7 @@ enum Report {
             let describe: (InputCaps?) -> String = { c in c.map { "\($0.maxWidth)x\($0.maxHeight)/300 in, \($0.resolutions.count) resolutions" } ?? "-" }
             lines.append("  \(s.usb ? "USB" : "network") \(s.name): glass \(describe(caps?.platen)), feeder \(describe(caps?.adf))\(failure)")
         }
+        scanners.closeSessions()
         scanners.stop()
         return lines
     }

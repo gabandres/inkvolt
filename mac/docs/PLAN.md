@@ -227,17 +227,32 @@ mac/InkvoltPrintKit --build-system native`.
   `ShareAsync` would), glass 8.5 × 11.69 in, 200, 300 and 600 dpi, color and grey; shared on the Mac's 2 private
   addresses, listening on 9780, our client on the Mac read its capabilities over HTTPS; the announcement failed with
   DNS-SD's -65570 (Local Network denied: the run was a build of its own outside /Applications, which macOS hadn't asked
-  about; the card said it wasn't announced). With `--self-scan` our client on the Mac asked the
-  share for a page from the HP's glass: the job ran and completed, but ImageCaptureCore ended the scan with no page and no
-  error, so none came back (ImageCaptureCore's scan through `SystemScanDevice` had never run on real hardware; Open
-  below). Two runs a few minutes after another one had quit got ImageCaptureCore's -21345 ("Failed to open a connection
-  to the device") and the card said sharing couldn't start: the app never closes its ImageCaptureCore session, and the
-  printer seems to hold the last one for a few minutes. A scan from the Windows PC wasn't possible: this network carries
+  about; the card said it wasn't announced). With `--self-scan` our client on the Mac scanned a page
+  from the HP's glass through the share (1700 × 2338 at 200 dpi) once ImageCaptureCore's scan was fixed (below: it had
+  given no page, and its sessions were never closed). A scan from the Windows PC wasn't possible: this network carries
   no TCP from the PC to the Mac's LAN address at all (its SSH port times out too; only Tailscale reaches it), and the
   share serves private subnets only.
   Not checked: a real USB scanner shared (none on the build Mac), an iPhone's or a Mac's Image Capture or sane-airscan as
   the client, a scan region with an offset on a real ImageCaptureCore scanner (its origin is taken as the top left),
   the card on screen and VoiceOver, the firewall's question with automatic allowing off.
+- **ImageCaptureCore scans (2026-11-27, found while sharing the network HP; the released app's USB scanners go the same
+  way).** Three faults in PrintMac's `SystemScanDevice`, every scanner macOS lists: (1) right after a session opens the
+  selected unit is empty (no size, no resolution) even though it already says "flatbed", so the old "already selected"
+  shortcut asked an empty unit to scan, which never ended (or ended with no page and no error); then the scanner
+  announces its own selection, and when that came after ours and the scan request, the scan never started; (2) a scan
+  ending with no page and no error looked like an empty success; (3) the session was opened once and never closed, after
+  which the HP refused new sessions for minutes (-21345), and reopening while a close was still under way failed (-9921).
+  Now: the session is opened for each use and closed after it (`ScannerSessionUse`; a close under way finishes before
+  the next open; every one closed on quit), an open waits for the scanner's own selection, the unit is selected only
+  when it isn't the ready one and waited for until it says its size and resolutions (`ImageCaptureJob.unitReady`), and
+  PrintCore's `ImageCaptureJob` decides what each word from the scanner does (a scan with no page says so; 3 minutes
+  without a page or the end gives it up and says so; a page written without its callback is still read). The
+  ImageCaptureCore requests are made from synchronous closures (in an async function Swift picks the framework's async
+  overloads, which answer through a completion, not the delegate). Tests: `ImageCaptureJobTests` (PC). Checked on the
+  build Mac with the M234dw through Apple's AirScan driver (`--report … --ica-scan M234dw --times 2`, which traces every
+  word from ImageCaptureCore): two glass scans in a row, a 1700 × 2338 page each at 200 dpi, the session closed after
+  each and the next opened 10 s later; and through the share (above). An open now takes 8 to 10 s (the scanner's own
+  selection). Not checked: a feeder, a USB scanner, the Scan tab on screen.
 - **3.2 SNMP: a community per printer, SNMPv3 (Pro).** Logins in the Keychain (`SnmpLoginKeychain`, service
   `com.bermudezsystems.InkvoltPrint.snmp`). **Mac differences:** the crypto is a seam, `SnmpCrypto` (CryptoKit and
   CommonCrypto in PrintMac's `AppleSnmpCrypto`; a test-only one in PrintCoreTests), where Windows calls .NET's directly;
@@ -2787,10 +2802,8 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
     window and the Print menu's choice.
   - 3.1 Share a scanner on the network: done (2026-11-27, P12's 3.1 above); left, as on Windows, a real USB scanner shared
     and a phone, a Mac's Image Capture or sane-airscan as the client.
-  - ImageCaptureCore scans (`SystemScanDevice`, the Scan tab's USB scanners and a shared one), found with the network HP
-    all-in-one on 2026-11-27: a glass scan through Apple's AirScan driver completed with no page and no error; and the app
-    never closes its session (`requestCloseSession`), after which the printer refused a new one for a few minutes
-    (-21345). Needs a look with a real scanner on the build Mac; until then a shared or USB scanner may give no pages.
+  - ImageCaptureCore scans: fixed (2026-11-27, "ImageCaptureCore scans" under P12's 3.1). Not checked: a feeder (the
+    M234dw has none) and a USB scanner.
   - 3.3 The printer's own copier: LEDM's copy start names (`LedmCopy.startNames`) are Windows' assumption until a
     recording of a printer that offers a start confirms them; the M234dw's copy documents answer but hold only walk-up
     defaults, no start (2026-11-27), so it isn't offered there.
