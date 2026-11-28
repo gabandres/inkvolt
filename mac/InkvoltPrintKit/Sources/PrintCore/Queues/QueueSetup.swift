@@ -36,6 +36,12 @@ public enum QueueSetup {
         return QueueSetupPlan(queueName: queueName(info, taken: destinations.map(\.name)), deviceUri: uri, info: info.isEmpty ? "Printer" : info)
     }
 
+    /// IPP Everywhere's URL on `host` (`ipp://host:631/ipp/print`), for a printer with no IPP URL of its own: an IPv6 host
+    /// in brackets, its zone kept (`%25`, `PrinterAddress.urlHost`); nil for a host no URL can hold.
+    public static func fallbackIpp(host: String) -> URL? {
+        PrinterAddress.urlHost(host).flatMap { URL(string: "ipp://\($0):631/ipp/print") }
+    }
+
     /// The IPP URL with its host replaced by the printer's `.local` name when it has one; nil when it isn't IPP's (ipp, ipps, or
     /// IPP over http or https).
     static func deviceUri(_ ipp: URL, hostName: String?) -> String? {

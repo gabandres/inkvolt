@@ -1156,7 +1156,13 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   addresses write it `%25` (`PrinterAddress.urlHost`, which `DeviceHttp` uses too; a host no URL can hold gets the base
   `unusable.invalid`, never a trap). Windows keeps it too (later: `PrinterAddress.HostOf`, `UrlHost`, `UrlText`, with these
   tests; .NET holds a zone only in `Uri.IdnHost`). A zone that isn't RFC 6874's unreserved
-  characters is no address. Not checked: connecting to a link-local printer by its zone (the transports' scope, above).
+  characters is no address. As Windows' release review (2026-11-28) has it: `%25` with nothing after it is interface 25 (as
+  ipconfig shows it; `%2512` is interface 12, a raw `%12` kept), `ipp://[fe80::1%]/` is no address (`PrinterAddress.typedHost`
+  reads the literal as typed: swift-corelibs' URLComponents turns that stray `%` into `%25`); Set up in macOS keeps the
+  zone in the queue's URL, its fallback too (`QueueSetup.fallbackIpp`; the hand-made `ipp://[fe80::1%en0]:631/…` was no
+  URL); the printer's own links, IPP endpoint and port-80 scanner root already kept it (`percentEncodedHost`), now tested.
+  Windows' `UrlText` fix has no Mac counterpart: a `URL`'s own text holds the zone. Not checked: connecting to a link-local
+  printer by its zone (the transports' scope, above).
   The same review: Print a PDF's layouts refuse a PDF past `SheetPrint.maxSides` on its page count first
   (`SheetPrint.tooMany(_:pages:)`), then measure its pages once (off the main thread past 200 pages); `{n:D<n>}` pads to
   32 digits at most in both apps (`FileNameTemplate.padsTooWide`, refused by `problem` and `normalize`) and a preset's

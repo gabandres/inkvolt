@@ -34,7 +34,7 @@ public struct PrinterAddress: Equatable, Sendable {
         if text.isEmpty { return fail(loc("Type the printer's IP address or name.")) }
         let invalid = fail(loc("\"{0}\" is not a valid address.", text))
         if text.contains("://") {
-            guard let url = URLComponents(string: text), let host = url.host, !host.isEmpty, validPort(url.port),
+            guard let url = URLComponents(string: text), let host = typedHost(url, text), !host.isEmpty, validPort(url.port),
                   !host.contains(":") || validHost(host.trimmingCharacters(in: CharacterSet(charactersIn: "[]"))) else { return invalid }
             switch url.scheme?.lowercased() {
             case "ipp": return PrinterAddress(host: host, ipp: ippUrl("http", host, url.port ?? 631, url.path))
@@ -52,7 +52,7 @@ public struct PrinterAddress: Equatable, Sendable {
             }
         }
         // An IPv6 host comes with or without its brackets depending on the platform's URLComponents.
-        guard let hostPort = URLComponents(string: "http://" + text), let host = hostPort.host?.trimmingCharacters(in: CharacterSet(charactersIn: "[]")),
+        guard let hostPort = URLComponents(string: "http://" + text), let host = typedHost(hostPort, text)?.trimmingCharacters(in: CharacterSet(charactersIn: "[]")),
               !host.isEmpty, validPort(hostPort.port),
               hostPort.path.isEmpty || hostPort.path == "/", hostPort.query == nil, hostPort.fragment == nil, hostPort.user == nil,
               validHost(host) else { return invalid }
@@ -68,6 +68,26 @@ public struct PrinterAddress: Equatable, Sendable {
     }
 
     private static func fail(_ why: String) -> PrinterAddress { PrinterAddress(error: why) }
+
+    /// A typed URL's host, an IPv6 zone read as Windows' PrinterAddress.SplitZone reads it: "%25" is RFC 6874's escaped "%"
+    /// when something follows it (`%25en0`, `%2512`: interface en0, 12), while "%25" alone is interface 25, as ipconfig shows
+    /// an interface's number (the owner's call: an empty zone escaped is nothing anyone types). A zone typed raw (`%12`) is
+    /// kept as it is. Whether the zone is one is `validHost`'s to say; any other host is URLComponents' own. An IPv6 literal
+    /// is read from `text` as typed: swift-corelibs' URLComponents writes a stray "%" as "%25" (`[fe80::1%]` came back
+    /// `[fe80::1%25]`, interface 25), where Apple's refuses it.
+    private static func typedHost(_ c: URLComponents, _ text: String) -> String? {
+        guard let encoded = c.percentEncodedHost else { return nil }
+        let bracketed = encoded.hasPrefix("[") && encoded.hasSuffix("]")
+        var bare = bracketed ? String(encoded.dropFirst().dropLast()) : encoded
+        if bracketed, let open = text.firstIndex(of: "["), let close = text[open...].firstIndex(of: "]") {
+            bare = String(text[text.index(after: open)..<close])
+        }
+        guard bare.contains(":"), let pct = bare.firstIndex(of: "%") else { return c.host }
+        var zone = String(bare[bare.index(after: pct)...])
+        if zone.count > 2, zone.hasPrefix("25") { zone = String(zone.dropFirst(2)).removingPercentEncoding ?? "" }
+        let host = String(bare[..<pct]) + "%" + zone
+        return bracketed ? "[\(host)]" : host
+    }
 
     private static func defaultPort(_ scheme: String) -> Int { scheme == "https" ? 443 : 80 }
 

@@ -236,6 +236,12 @@ struct NetworkSearchTests {
         ("[fe80::1%25a]:8080", "fe80::1%a", "http://[fe80::1%25a]:8080/ipp/print", nil),
         ("http://[fe80::1%25a]:8080", "fe80::1%a", "http://[fe80::1%25a]:8080/ipp/print", "http://[fe80::1%25a]:8080/"),
         ("[fe80::1%25en0]", "fe80::1%en0", nil, nil),
+        ("ipp://[fe80::1%12]/", "fe80::1%12", "http://[fe80::1%2512]:631/ipp/print", nil), // Windows' zones are numbers
+        // "%25" with nothing after it is interface 25 (ipconfig's "%25"), not an escaped empty zone; "%2512" is still interface 12.
+        ("[fe80::1%25]", "fe80::1%25", nil, nil),
+        ("ipp://[fe80::1%25]/", "fe80::1%25", "http://[fe80::1%2525]:631/ipp/print", nil),
+        ("[fe80::1%25]:8080", "fe80::1%25", "http://[fe80::1%2525]:8080/ipp/print", nil),
+        ("ipp://[fe80::1%2512]/", "fe80::1%12", "http://[fe80::1%2512]:631/ipp/print", nil),
     ] as [(String, String, String?, String?)])
     func A_zoned_IPv6_address_keeps_its_zone(_ typed: String, _ host: String, _ ipp: String?, _ web: String?) {
         let a = PrinterAddress.parse(typed)
@@ -246,7 +252,7 @@ struct NetworkSearchTests {
     }
 
     /// A zone that isn't one (empty, or a character a zone can't hold) is no address, never a URL made from it.
-    @Test(arguments: ["ipp://[fe80::1%25]/", "ipp://[fe80::1%25a%2Fb]/", "[fe80::1%25a%2Fb]:8080", "[fe80::1%25]:8080"])
+    @Test(arguments: ["ipp://[fe80::1%]/", "ipp://[fe80::1%25a%2Fb]/", "[fe80::1%25a%2Fb]:8080", "[fe80::1%]:8080"])
     func A_zone_that_isnt_one_is_no_address(_ typed: String) {
         let a = PrinterAddress.parse(typed)
         #expect(a.error != nil)
