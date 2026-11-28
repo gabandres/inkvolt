@@ -74,6 +74,9 @@ final class ContentEditing: NSObject, NSPopoverDelegate {
         }
     }
 
+    /// Whether a page's content has been read for the current bytes.
+    func isRead(_ page: Int) -> Bool { content[page] != nil }
+
     /// A page's content, read when first asked for.
     func ensure(_ page: Int) async -> PageContent {
         if let c = content[page] { return c }

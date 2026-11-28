@@ -2589,6 +2589,11 @@ and `corpusParagraphsTakeTwentyMoreWords` needs `INKVOLTPDF_CORPUS` (the export 
   /System/Library/Fonts/ZapfDingbats.ttf (its built-in encoding from Unicode's mapping of the Dingbats block, the glyph
   names and widths from the font; Windows reads Adobe's AFM and glyph list, which the Mac doesn't copy), Symbol with
   macOS's Symbol.ttf by its glyph names' characters (Adobe's widths, rounded; the euro 750 as on Windows).
+- **A click before the page is read.** Every edit, undo and redo clears what Edit Text & Images read of the pages, and a
+  page is read again when it draws; a click on a page not read yet waits for the reading and then counts as a click
+  (no drag starts from it). Windows drops such a press and asks for the page. Found by the self-test: its turning step
+  (4.22) edits first, and on the build Mac's sleeping screen nothing drew, so the next step's click on the paragraph did
+  nothing (4 failures on master, only some runs); the step now clears the reading itself before clicking.
 - **The editor is a popover, at a readable size.** Windows lays a rich text box over the paragraph at the page's zoom; the
   Mac's editor is a popover anchored on the paragraph showing its text at 14 points (other sizes in proportion), in its
   family when this Mac has it.
