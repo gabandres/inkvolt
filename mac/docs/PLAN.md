@@ -2514,6 +2514,18 @@ Ported from Windows' modules and tests (2026-11-23, on `buildmac`).
   them. As on Windows, a paragraph turned so far that its box takes in other text (a heading above) can't be edited or
   turned again until Undo takes the turn back. Not checked by a person: the handle and the turned outline by eye, dragging it by hand.
 
+### Windows' additions of 2026-11-19 and 20 (roadmap 1.2, 1.3, 1.5, 2.4, 3.1)
+
+What an audit of 2026-11-27 found the Mac still lacked of Windows' work of 2026-11-19 and 20, ported with Windows' tests
+under their names (3.2's links in the exports were already ported, 803da39c). Mac differences:
+
+- **1.2, Batch prices a file by what its streams unpack to** (`BatchRunner.unpackedSize`, `pictureBytes`, `Inflate.length`;
+  counted ahead of admission on a thread of its own, `UnpackedAhead`). A stream counts only after a zlib header, as MuPDF's
+  zlib reads it, where Windows skips any two bytes as PDFsharp does: Apple's raw-deflate decoder doesn't check a stored
+  block's length against its complement, so a content stream's text read as deflate data counted the file after it (a
+  page's "0 0 1 rg" became a 12,576-byte stored block). The split-keyword test straddles the Mac's 1 MB reading blocks
+  (Windows': 64 KB, then 1 MB; its test kept 65,530-65,536).
+
 ## Open decisions
 
 None.

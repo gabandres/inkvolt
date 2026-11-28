@@ -562,7 +562,8 @@ extension BatchRunner {
 /// file). Passwords are asked through the host, one prompt at a time; encrypted files keep their protection, and signed
 /// files are skipped unless the plan says otherwise.
 public enum BatchRunner {
-    /// Estimated working memory per byte of file (the bytes, MuPDF, a copy per action).
+    /// Estimated working memory per byte of file, or of what its streams unpack to (the bytes, MuPDF, a copy per action:
+    /// Reduce File Size took 1.6 GB for a 200 MB stream on Windows).
     private static let memoryPerByte = 8
     private static let minWeight = 32 << 20
 
@@ -585,11 +586,30 @@ public enum BatchRunner {
             }
         }
 
+        // What each file unpacks to, counted ahead of the files' admission on a thread of its own, in order.
+        let unpacked = UnpackedAhead(files.count)
+        let cap = plan.memoryBudget / memoryPerByte
+        Thread.detachNewThread {
+            for (i, file) in files.enumerated() {
+                do {
+                    unpacked.set(i, file.isImage ? 0 : try unpackedSize(file.path, cap: cap, cancel: cancel))
+                } catch is CancellationError {
+                    return unpacked.stop()
+                } catch {
+                    unpacked.set(i, 0) // reading it will fail and say why
+                }
+            }
+        }
+
         await withTaskGroup(of: Void.self) { group in
             for (index, file) in files.enumerated() {
                 do { try await slots.wait(cancel) } catch { break }
+                guard let inflates = await unpacked.value(index) else {
+                    slots.signal()
+                    break
+                }
                 let size = (try? FileManager.default.attributesOfItem(atPath: file.path)[.size] as? Int) ?? 0
-                let weight = weight(size, plan.rendersPages ? largestPage(file) : nil, plan)
+                let weight = weight(size, plan.rendersPages ? largestPage(file) : nil, plan, unpacked: inflates)
                 do {
                     try await gate.enter(weight, cancel)
                 } catch {
@@ -662,11 +682,12 @@ public enum BatchRunner {
     /// The redaction check draws every page at this resolution (`RedactionCheck`'s first look).
     private static let checkDpi = 54.0
 
-    /// Estimated working memory of a file: its bytes (and the copies its actions make), plus, when the plan renders pages
-    /// (page images, OCR), the largest page's pixels at the highest resolution asked, 4 bytes each. `largestPage`: the
-    /// largest page in points (nil: unknown, a Letter page is assumed).
-    static func weight(_ fileSize: Int, _ largestPage: (width: Double, height: Double)?, _ plan: BatchPlan) -> Int {
-        let weight = max(minWeight, fileSize * memoryPerByte)
+    /// Estimated working memory of a file: its bytes or what its streams unpack to, whichever is more (and the copies its
+    /// actions make), plus, when the plan renders pages (page images, OCR), the largest page's pixels at the highest
+    /// resolution asked, 4 bytes each. `largestPage`: the largest page in points (nil: unknown, a Letter page is assumed);
+    /// `unpacked`: what the file's streams unpack to (`unpackedSize`).
+    static func weight(_ fileSize: Int, _ largestPage: (width: Double, height: Double)?, _ plan: BatchPlan, unpacked: Int = 0) -> Int {
+        let weight = max(minWeight, max(fileSize, unpacked) * memoryPerByte)
         if !plan.rendersPages { return weight }
         let (w, h) = largestPage ?? (612, 792)
         var pixels = 0.0
@@ -682,6 +703,166 @@ public enum BatchRunner {
             pixels = max(pixels, min(maxPixels, w / 72 * dpi * (h / 72 * dpi)))
         }
         return weight + Int(pixels * 4)
+    }
+
+    /// Most a stream counts in `unpackedSize` (the Windows Core's `PdfObj.MaxStreamBytes`).
+    static let maxStreamBytes = 256 << 20
+    /// Most streams `unpackedSize` inflates in one file.
+    static let maxStreamsCounted = 50_000
+
+    /// What a file's streams unpack to, together, counted before the file is admitted (the Windows Core's
+    /// `BatchRunner.Unpacked`): a 200 KB file can hold a stream that unpacks to 200 MB, and Reduce File Size then takes
+    /// 1.6 GB. The file is read in place, not parsed: the data after each "stream" keyword and its end of line is inflated
+    /// (after its zlib header) and counted a chunk at a time, kept nowhere (`Inflate.length`); data that isn't Flate
+    /// fails at once, having counted next to nothing. A picture (its dictionary, read back from the keyword, says
+    /// /Subtype /Image with its size) counts what it decodes to, width × height × components × bits, and isn't inflated.
+    /// Encrypted streams count nothing (the file is priced by its size). Each stream counts up to `maxStreamBytes`;
+    /// counting stops past `cap` or after `maxStreamsCounted` streams inflated (such a file runs alone anyway).
+    static func unpackedSize(_ path: String, cap: Int, cancel: CancelToken? = nil) throws -> Int {
+        let lookback = 4096 // a stream's dictionary, read back from its keyword
+        let keyword = Array("stream".utf8)
+        guard let scan = FileHandle(forReadingAtPath: path), let data = FileHandle(forReadingAtPath: path) else {
+            throw CocoaError(.fileReadNoSuchFile)
+        }
+        defer {
+            try? scan.close()
+            try? data.close()
+        }
+        var buffer: [UInt8] = []
+        buffer.reserveCapacity(1 << 20)
+        var total = 0, start = 0 // start: the file offset of buffer[0]
+        var from = 0, inflated = 0
+        var end = false
+        while !end {
+            try cancel.check()
+            let read = try scan.read(upToCount: (1 << 20) - buffer.count) ?? Data()
+            end = read.isEmpty
+            buffer.append(contentsOf: read)
+            let filled = buffer.count
+            var at = from
+            var wait: Int? // a keyword whose end of line may be in the next block
+            while let i = find(keyword, in: buffer, from: at) {
+                at = i + keyword.count
+                if !end && at + 2 > filled {
+                    wait = i
+                    break
+                }
+                var p = at
+                if p < filled && buffer[p] == 13 { p += 1 }
+                if p < filled && buffer[p] == 10 { p += 1 }
+                // "streams", "endstream"
+                if p == at || (i >= 3 && buffer[i - 3] == 101 && buffer[i - 2] == 110 && buffer[i - 1] == 100) { continue }
+                let back = max(0, i - lookback)
+                if let picture = pictureBytes(String(decoding: buffer[back..<i].map { $0 < 0x80 ? $0 : 0x3F }, as: UTF8.self)) {
+                    total += picture
+                } else {
+                    inflated += 1
+                    if inflated > maxStreamsCounted { return cap + 1 }
+                    try data.seek(toOffset: UInt64(start + p))
+                    // Only data with a zlib header, as MuPDF's zlib inflates it (Windows skips any two bytes, as PDFsharp
+                    // does): Apple's decoder doesn't check a stored block's length against its complement, so text read
+                    // as deflate data would count the file after it.
+                    if let header = try data.read(upToCount: 2), header.count == 2, Inflate.isZlibHeader(header[header.startIndex], header[header.startIndex + 1]) {
+                        total += try Inflate.length(data, limit: min(maxStreamBytes, cap - total), cancel: cancel)
+                    }
+                }
+                if total > cap { return total }
+            }
+            // Keep what may be the start of a keyword split across blocks, and the dictionaries before what is still to read.
+            let next = wait ?? max(at, filled - keyword.count + 1)
+            let keep = max(0, next - lookback)
+            buffer.removeFirst(keep)
+            start += keep
+            from = next - keep
+        }
+        return total
+    }
+
+    /// Where `needle` next starts in `hay`, from `at` on.
+    private static func find(_ needle: [UInt8], in hay: [UInt8], from at: Int) -> Int? {
+        let last = hay.count - needle.count
+        var i = at
+        while i <= last {
+            if hay[i] == needle[0] {
+                var j = 1
+                while j < needle.count && hay[i + j] == needle[j] { j += 1 }
+                if j == needle.count { return i }
+            }
+            i += 1
+        }
+        return nil
+    }
+
+    /// What a picture decodes to, from the end of the text before its "stream" keyword (its dictionary, after "obj"):
+    /// width × height × components × bits per component, up to `maxStreamBytes`. Nil when it isn't a picture or its size
+    /// isn't written there (an indirect width).
+    static func pictureBytes(_ before: String) -> Int? {
+        let dict = before.range(of: "obj", options: .backwards).map { String(before[$0.lowerBound...]) } ?? before
+        func match(_ pattern: String) -> [String]? {
+            guard let re = try? NSRegularExpression(pattern: pattern),
+                  let m = re.firstMatch(in: dict, range: NSRange(dict.startIndex..., in: dict)) else { return nil }
+            return (0..<m.numberOfRanges).map { m.range(at: $0).location == NSNotFound ? "" : (dict as NSString).substring(with: m.range(at: $0)) }
+        }
+        func number(_ key: String) -> Int? { match(key + #"\s+(\d{1,9})\b(?!\s+\d+\s+R)"#).flatMap { Int($0[1]) } }
+        guard match(#"/Subtype\s*/Image\b"#) != nil, let w = number("/Width"), let h = number("/Height") else { return nil }
+        let (width, height) = (min(w, 1_000_000), min(h, 1_000_000)) // no product past an Int
+        let mask = match(#"/ImageMask\s+true"#) != nil
+        let bits = mask ? 1 : min(max(number("/BitsPerComponent") ?? 8, 1), 16)
+        var components = 3
+        if mask {
+            components = 1
+        } else if let space = match(#"/ColorSpace\s*(\[\s*)?/(\w+)"#) {
+            switch space[2] {
+            case "DeviceGray", "CalGray", "Indexed", "Separation": components = 1
+            case "DeviceCMYK": components = 4
+            default: components = 3
+            }
+        }
+        return min(maxStreamBytes, (width * height * components * bits + 7) / 8)
+    }
+
+    /// What each file unpacks to as it is counted: `value` waits for a file's count; nil once counting stopped (the batch
+    /// cancelled).
+    private final class UnpackedAhead: @unchecked Sendable {
+        private let lock = NSLock()
+        private var values: [Int?]
+        private var stopped = false
+        private var waiters: [Int: CheckedContinuation<Int?, Never>] = [:]
+
+        init(_ count: Int) { values = Array(repeating: nil, count: count) }
+
+        func set(_ i: Int, _ v: Int) {
+            lock.lock()
+            values[i] = v
+            let w = waiters.removeValue(forKey: i)
+            lock.unlock()
+            w?.resume(returning: v)
+        }
+
+        func stop() {
+            lock.lock()
+            stopped = true
+            let all = waiters
+            waiters = [:]
+            lock.unlock()
+            for w in all.values { w.resume(returning: nil) }
+        }
+
+        func value(_ i: Int) async -> Int? {
+            await withCheckedContinuation { (c: CheckedContinuation<Int?, Never>) in
+                lock.lock()
+                if let v = values[i] {
+                    lock.unlock()
+                    c.resume(returning: v)
+                } else if stopped {
+                    lock.unlock()
+                    c.resume(returning: nil)
+                } else {
+                    waiters[i] = c
+                    lock.unlock()
+                }
+            }
+        }
     }
 
     /// The largest page of a file (points), read in place; nil when it can't be told (encrypted, damaged).

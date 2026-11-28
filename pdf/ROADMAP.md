@@ -105,7 +105,8 @@ restarted mid-run: every file once, none twice; also through the Store package's
   (`BatchRunner.Unpacked`, counted a chunk at a time before admission, 8 bytes a byte), since a 200 KB file can unpack a
   200 MB stream and take 1.6 GB in Reduce File Size; such a file runs alone.
 - **Not checked:** a share on another PC over a real network; a run as a scheduled task.
-- **Mac:** pricing a file by what its streams unpack to isn't ported.
+- **Mac:** done (2026-11-27), the same pricing (`BatchRunner.unpackedSize`, `pictureBytes`); a stream counts only after a
+  zlib header (`mac/docs/PLAN.md`, "Windows' additions of 2026-11-19 and 20").
 
 ### 1.3 Accessibility checker
 Done, Windows and Mac. `AccessibilityCheck`: Matterhorn Protocol 1.1's machine-checkable conditions (83 of 87) plus
