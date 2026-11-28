@@ -49,6 +49,33 @@ struct OtherFormatsTests {
         #expect(words.contains("Inkvolt reads FictionBook") && words.contains("A second paragraph"))
     }
 
+    /// MuPDF lays FB2 and EPUB out with HarfBuzz, whose allocations find their context through one global MuPDF sets in
+    /// fz_hb_lock and clears in fz_hb_unlock, held under each context's own FreeType lock: two documents (two contexts)
+    /// laid out at once cleared it under each other, and the next HarfBuzz allocation used a NULL context (CI's pdf job:
+    /// "Exited with unexpected signal code 11"). The patch harfbuzz-context-per-thread keeps it per thread.
+    @Test func fictionBooksLaidOutOnSeveralThreadsAtOnce() throws {
+        let paragraphs = (0..<300).map { "<p>Paragraph \($0): Inkvolt reads FictionBook, shaped word by word, ﬁne and ﬂat.</p>" }
+        let fb2 = "<FictionBook><body><section>" + paragraphs.joined() + "</section></body></FictionBook>"
+        let path = try file("Long.fb2", Array(fb2.utf8))
+        let failures = Failures()
+        DispatchQueue.concurrentPerform(iterations: 48) { _ in
+            do {
+                let made = try OtherFormats.convert(path: path)
+                if made.pdf.count < 1000 || !made.blank.isEmpty { failures.add() }
+            } catch {
+                failures.add()
+            }
+        }
+        #expect(failures.count == 0)
+    }
+
+    private final class Failures: @unchecked Sendable {
+        private let lock = NSLock()
+        private var n = 0
+        func add() { lock.withLock { n += 1 } }
+        var count: Int { lock.withLock { n } }
+    }
+
     @Test func anXpsBecomesAPdfWithItsPageSizeAndText() throws {
         let page = """
         <FixedPage xmlns="http://schemas.microsoft.com/xps/2005/06" Width="816" Height="1056" xml:lang="en-US">
@@ -87,6 +114,8 @@ struct OtherFormatsTests {
         #expect(blue.b > 120 && blue.r < 80)
     }
 
+    /// Also the shim's stream kept alive: MuPDF's picture and comic-book documents read their file and drop its stream,
+    /// and each page's reading then wrote into the freed one (inkv_begin; Address Sanitizer's heap-use-after-free here).
     @Test func aComicBookAndAPictureBecomeAPageEach() throws {
         let red = TestImages.png(40, 20) { _, _ in (220, 20, 20, 255) }
         let cbz = try file("Comic.cbz", try zip([("001.png", red), ("002.png", red)]))

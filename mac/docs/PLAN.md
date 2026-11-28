@@ -1976,10 +1976,14 @@ takes (`inkv_cookie_limit`, `inkv_cookie_stopped`). **Mac difference:** no check
   An inline picture's filters run inside that one parse, reading no byte of the file and never looking at the cookie,
   and the page checks don't see them: `/F [/Fl /Fl /Fl /AHx]` over a few dozen bytes inflated 4 GB of zeros that
   ASCIIHex skips as white space (9 s for a 1 x 1 picture, and Cancel couldn't stop it). Since 2026-11-23 the Mac's
-  MuPDF has one patch, `Vendor/mupdf/patches/inline-image-filter-budget.patch` (applied by `build.sh`; the report for
+  MuPDF has a patch for it, `Vendor/mupdf/patches/inline-image-filter-budget.patch` (applied by `build.sh`; the report for
   MuPDF's tracker beside it, `inline-image-filter-budget.md`): what all the filters of one inline picture produce is
   stopped at 8 times its decoded size plus 1 MB, as data cut short (the picture pads, the page draws and reads, in
   10 ms). **Mac difference:** Windows' prebuilt MuPDFCore has no such patch; its check process ends such a page at 10 s.
+  A second patch (2026-11-28), `harfbuzz-context-per-thread.patch`: MuPDF kept HarfBuzz's context in one global, set
+  and cleared under each context's own FreeType lock, and every Mac document has a context of its own, so two FB2 or
+  EPUB books (or rich-text appearances) laid out at once cleared it under each other and crashed on a NULL context
+  (CI's pdf job, signal 11); it is per thread now.
   A guard device (`inkv_guard`) in front of the list, text, export and draw devices looks at the clock with each
   drawing call (every 64 calls, and before every picture, shading, tile and group: nested forms drawn a billion times
   read no bytes) and refuses a picture, or its soft mask, of more than `PdfEngine.maxPicturePixels` (268 M pixels,
