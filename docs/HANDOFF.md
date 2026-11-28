@@ -22,8 +22,7 @@ the Mac machines and where the keys are backed up: `mac/docs/NEW-MAC.md`; what t
   file; Windows is safe: MuPDFCore's shared locks, ReflowableLayoutTests). Redaction on a highlighted line now closes the
   gap (it showed the removed word's width), Mac and Windows.
   - **Released 2026-11-28:** Windows Inkvolt PDF 1.20.0 and Inkvolt Print 1.11.0 (Published 05:34/05:23), Inkvolt PDF
-    1.20.1 (the redaction fix; submitted, in certification when this was written: mark `pdf-v1.20.1.0` `-Published` and
-    the website's softwareVersion once Published); Inkvolt PDF for Mac 1.14.0 live (pdf-mac-v1.14.0, appcast 5afed9ae,
+    1.20.1 (the redaction fix; Published 07:26, GitHub release marked, website 56e1d9e); Inkvolt PDF for Mac 1.14.0 live (pdf-mac-v1.14.0, appcast 5afed9ae,
     Homebrew cask 68922f7, website 7de21a5); Inkvolt Print for Mac 1.5.0 build 10 WAITING_FOR_REVIEW (released by
     itself on approval; then tag `print-mac-v1.5.0` on 27b67d2c and the website's softwareVersion 1.4.0 → 1.5.0).
   - **The build Mac's `gh` isn't signed in:** `release.sh --publish` failed at its GitHub step (exit 102); the release and
