@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationXML)
+import FoundationXML
+#endif
 import Synchronization
 import Testing
 import TestTiming
@@ -238,6 +241,30 @@ struct ScannerSharingTests {
         #expect(Self.status(Array("<not xml".utf8)) == 400)
         // Duplex on a scanner without it.
         #expect(Self.status(Self.settings("<pwg:InputSource>Feeder</pwg:InputSource><scan:Duplex>true</scan:Duplex>"), Self.mfp(duplex: false)) == 409)
+    }
+
+    /// The pre-release review: the DTD check looked for "<!DOCTYPE" in ASCII only, so the same body in UTF-16 (or declared in
+    /// another encoding) reached XMLParser with its entities. A body is UTF-8 (a BOM allowed) starting with "<", has no NUL
+    /// and declares no other encoding; and a declaration that still reaches the parser stops it.
+    @Test func aDtdInAnotherEncodingIsRefusedToo() {
+        let entity = "<?xml version=\"1.0\"?><!DOCTYPE s [<!ENTITY e \"Feeder\">]><scan:ScanSettings xmlns:scan=\"http://schemas.hp.com/imaging/escl/2011/05/03\" "
+            + "xmlns:pwg=\"http://www.pwg.org/schemas/2010/12/sm\"><pwg:InputSource>&e;</pwg:InputSource></scan:ScanSettings>"
+        let utf16le: [UInt8] = [0xFF, 0xFE] + entity.utf16.flatMap { [UInt8($0 & 0xFF), UInt8($0 >> 8)] }
+        let utf16be: [UInt8] = [0xFE, 0xFF] + entity.utf16.flatMap { [UInt8($0 >> 8), UInt8($0 & 0xFF)] }
+        let noBom = Array(utf16le.dropFirst(2))
+        for body in [utf16le, utf16be, noBom] { #expect(Self.status(body) == 400) }
+        #expect(Self.status(Array("<?xml version=\"1.0\" encoding=\"UTF-7\"?><scan:ScanSettings/>".utf8)) == 400)
+        #expect(Self.status(Array("  \n".utf8) + Self.settings("")) == 400) // only "<" (after a UTF-8 BOM) starts one
+        // What still reaches the parser: the delegate stops at any declaration.
+        let parser = XMLParser(data: Data())
+        let entities = ShareXml.SettingsReader(), elements = ShareXml.SettingsReader()
+        entities.parser(parser, foundInternalEntityDeclarationWithName: "e", value: "Feeder")
+        elements.parser(parser, foundElementDeclarationWithName: "s", model: "ANY")
+        #expect(entities.refused?.status == 400)
+        #expect(elements.refused?.status == 400)
+        // A UTF-8 body with its BOM and one naming UTF-8 are read as before.
+        #expect(Self.status([0xEF, 0xBB, 0xBF] + Self.settings("")) == nil)
+        #expect(Self.status(Self.settings("<pwg:InputSource>Platen</pwg:InputSource>")) == nil)
     }
 
     @Test func aFeederOnlyScannerScansItsFeederWhenNoSourceIsNamed() throws {
