@@ -345,6 +345,7 @@ public partial class DocumentTab
         CommentEditMenu.Click += (_, _) => { if (CommentList.SelectedItem is CommentItem c) _ = EditComment(c.Info); };
         CommentDeleteButton.Click += (_, _) => { if (CommentList.SelectedItem is CommentItem c) _ = DeleteComment(c.Info); };
         CommentDeleteMenu.Click += (_, _) => { if (CommentList.SelectedItem is CommentItem c) _ = DeleteComment(c.Info); };
+        CommentReplyMenu.Click += (_, _) => { if (CommentToReplyTo is { } a) _ = ReplyToComment(a); };
 
         AttachmentList.SelectionChanged += (_, _) => UpdateAttachmentButtons();
         AttachmentList.MouseDoubleClick += (_, e) =>
@@ -636,6 +637,24 @@ public partial class DocumentTab
         UpdatePaneDetail();
     }
 
+    /// <summary>True when the Comments pane lists a comment for Next Comment and Previous Comment to go to.</summary>
+    internal bool HasListedComments => !CommentList.Items.IsEmpty;
+
+    /// <summary>
+    /// Next Comment (<paramref name="by"/> 1) and Previous Comment (-1), as the Mac's Go menu: the comment after (before)
+    /// the one chosen in the Comments pane's list (its filter applies), around the ends, chosen there and shown on its
+    /// page (<see cref="Annotations.StepComment"/>).
+    /// </summary>
+    internal void SelectAdjacentComment(int by)
+    {
+        var shown = CommentList.Items.OfType<CommentItem>().ToList();
+        var next = Annotations.StepComment(shown.Count, CommentList.SelectedItem is CommentItem c ? shown.IndexOf(c) : -1, by);
+        if (next < 0) return;
+        if (CommentList.SelectedItem == shown[next]) FlashComment(shown[next].Info); // one comment: shown again
+        CommentList.SelectedItem = shown[next];
+        CommentList.ScrollIntoView(shown[next]);
+    }
+
     private void FlashComment(AnnotationInfo a)
     {
         if (a.PageIndex < 0 || a.PageIndex >= Viewer.PageCount) return;
@@ -750,6 +769,39 @@ public partial class DocumentTab
         var replies = _annotations.Count(x => x.ReplyTo == head.Id && !x.Grouped); // a group's members go as part of it
         return await RunEdit(replies > 0 ? Loc.Plural(replies, Strings.Review_UndoDeleteReplies_One, Strings.Review_UndoDeleteReplies_Many) : Strings.Review_UndoDeleteComment,
             (d, pw) => Annotations.Delete(d, pw, head.Id), contentOnly: true);
+    }
+
+    /// <summary>The comment Reply to Comment answers: the one chosen in the Comments pane (a group by its head).</summary>
+    internal AnnotationInfo? CommentToReplyTo =>
+        CommentList.SelectedItem is CommentItem { Info: var a } && !a.IsInkvoltPdfStamp ? Annotations.GroupHead(a, _annotations) : null;
+
+    /// <summary>
+    /// Reply to Comment… (Review menu, Ctrl+Shift+R; the Comments pane's Reply…; the Mac's Reply to Comment… and its
+    /// inspector's reply field): asks for the text (unless given) and adds it as a reply (<see cref="Annotations.AddReply"/>),
+    /// listed under the comment. One undo step.
+    /// </summary>
+    public async Task<bool> ReplyToComment(AnnotationInfo a, string? text = null)
+    {
+        if (!Session.IsPdf || !ReviewIsCurrent()) return false;
+        if (text is null)
+        {
+            if (Window.GetWindow(this) is not { } owner) return false;
+            var dlg = new FormDialog(owner, Strings.Review_ReplyTitle, Strings.Review_ReplyButton);
+            var said = a.Contents.Trim().ReplaceLineEndings(" ");
+            if (said.Length > 80) said = said[..80].TrimEnd() + "…";
+            var by = a.Author is { Length: > 60 } longName ? longName[..60].TrimEnd() + "…" : a.Author; // from the PDF: any length
+            var who = string.Join(" · ", new[] { CommentItem.TitleOf(a), by, said }.Where(s => !string.IsNullOrWhiteSpace(s)));
+            dlg.AddNote(Loc.Format(Strings.Review_ReplyTo, who));
+            var box = NoteBox(dlg, "");
+            dlg.AddNote(Loc.Format(Strings.Review_ReplyNote, PageLabel(a.PageIndex), Author));
+            dlg.Validate(() => box.Text.Trim().Length == 0 ? Strings.Review_ReplyEmpty : null);
+            if (!dlg.ShowModal()) return false;
+            text = box.Text.Trim();
+        }
+        if (text.Length == 0) return false;
+        var author = Author;
+        var reply = text;
+        return await RunEdit(Strings.Review_ReplyTitle, (d, pw) => Annotations.AddReply(d, pw, a.Id, reply, author), contentOnly: true);
     }
 
     // ───────────────────────────── Attachments ─────────────────────────────

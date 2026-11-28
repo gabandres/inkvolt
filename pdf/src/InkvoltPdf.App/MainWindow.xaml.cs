@@ -150,6 +150,8 @@ public partial class MainWindow : Window
         foreach (var b in DocCommands.Children.OfType<System.Windows.Controls.Primitives.ButtonBase>())
             if (b.Tag is string id) ToolbarPanel.SetPriority(b, CommandBarLayout.Group(id).Priority);
         BuildBarGroups();
+        BuildBarExtras();
+        ArrangeBar();
         ScaleTitleBar();
         TextScale.Changed += (_, _) => ScaleTitleBar();
         FolderWatches.Changed += ShowWatchStatus;
@@ -893,7 +895,9 @@ public partial class MainWindow : Window
     private void OnMoreClick(object sender, RoutedEventArgs e)
     {
         var menu = IconButtonMenu(MoreButton);
-        foreach (var item in DocCommands.OverflowItems)
+        // What didn't fit, then what the person took off the bar (Customize Command Bar…).
+        IEnumerable<UIElement> items = _barHidden.Count == 0 ? DocCommands.OverflowItems : [.. DocCommands.OverflowItems, new Border(), .. _barHidden];
+        foreach (var item in items)
         {
             if (ToolbarPanel.IsSeparator(item))
             {
@@ -928,6 +932,8 @@ public partial class MainWindow : Window
             FillAppearanceMenu(appearance);
             menu.Items.Add(appearance);
         }
+        menu.Items.Add(new Separator());
+        menu.Items.Add(new MenuItem { Command = Cmd.CustomizeBar, CommandTarget = this });
         menu.IsOpen = true;
     }
 
@@ -1006,6 +1012,70 @@ public partial class MainWindow : Window
     }
 
     private readonly List<BarGroupButton> _barGroups = [];
+
+    // ── Customize Command Bar (the Mac's Customize Toolbar…) ──
+
+    /// <summary>Every customizable child of the bar by its CommandBarLayout id, on the bar or not.</summary>
+    private readonly Dictionary<string, UIElement> _barItems = [];
+
+    /// <summary>The entries the person took off the bar, in their order: listed in "…" after what didn't fit.</summary>
+    private readonly List<UIElement> _barHidden = [];
+
+    internal IReadOnlyList<UIElement> DevBarHidden => _barHidden;
+
+    /// <summary>The entries Customize Command Bar… offers besides the bar's own (CommandBarLayout.Extras): icon buttons.</summary>
+    private void BuildBarExtras()
+    {
+        foreach (var entry in CommandBarLayout.Extras)
+        {
+            var command = CommandNamed(entry.Main.Name);
+            var button = new Button { Tag = entry.Id, Command = command, Content = entry.Main.Glyph, ToolTip = CommandText(command) };
+            button.SetResourceReference(StyleProperty, "IconButton");
+            AutomationProperties.SetName(button, CommandText(command));
+            ToolbarPanel.SetPriority(button, entry.Priority);
+            _barItems[entry.Id] = button;
+        }
+    }
+
+    /// <summary>A command's menu name without its access key or "…", as a button or a list names it.</summary>
+    internal static string CommandText(RoutedUICommand command) => command.Text.Replace("_", "").TrimEnd('…');
+
+    /// <summary>
+    /// Puts the bar's entries in the order the settings keep (<see cref="AppSettings.CommandBar"/>, through
+    /// <see cref="CommandBarLayout.Arrange"/>), with the separators where the kind changes; the hidden ones go to "…".
+    /// </summary>
+    internal void ArrangeBar()
+    {
+        foreach (var child in DocCommands.Children.OfType<FrameworkElement>().ToList())
+            if (child.Tag is string id) _barItems[id] = child;
+        var arrangement = CommandBarLayout.Arrange(AppSettings.Current.CommandBar);
+        foreach (var child in DocCommands.Children.OfType<UIElement>().Where(c => c != MoreButton).ToList())
+            DocCommands.Children.Remove(child);
+        var at = 0;
+        foreach (var id in CommandBarLayout.WithSeparators(arrangement.Shown))
+            DocCommands.Children.Insert(at++, id is null ? new Border { Style = (Style)FindResource("BarSeparator") } : _barItems[id]);
+        _barHidden.Clear();
+        _barHidden.AddRange(arrangement.Hidden.Select(id => _barItems[id]));
+        DocCommands.InvalidateMeasure();
+    }
+
+    /// <summary>View › Customize Command Bar…: the person's choice, kept in the settings, for every window.</summary>
+    private void CustomizeBar()
+    {
+        if (BarCustomizeDialog.Ask(this, CommandBarLayout.Arrange(AppSettings.Current.CommandBar), id => BarItemName(id)) is not { } chosen) return;
+        AppSettings.Current.CommandBar = CommandBarLayout.IsDefault(chosen) ? null : CommandBarLayout.Save(chosen);
+        AppSettings.Current.Save();
+        Log.Write($"Command bar: {string.Join(' ', CommandBarLayout.Save(chosen))}");
+        foreach (var w in Application.Current.Windows.OfType<MainWindow>()) w.ArrangeBar();
+    }
+
+    /// <summary>What Customize Command Bar… calls an entry: a group's label, the pointer tools, a command's name.</summary>
+    private static string BarItemName(string id) => CommandBarLayout.Group(id) switch
+    {
+        { Id: CommandBarLayout.Pointer } => Strings.Main_PointerTools,
+        { Label: { } label } => label,
+        var e => CommandText(CommandNamed(e.Main.Name)),
+    };
 
     /// <summary>A group's split button on the bar (where its menus drop from), by its CommandBarLayout id.</summary>
     private BarGroupButton? BarGroup(string id) => _barGroups.FirstOrDefault(g => g.Group.Id == id);
@@ -1963,6 +2033,8 @@ public partial class MainWindow : Window
             t => !IsSaving(t) && (t.Session.IsDirty || t.Session.FilePath is null || t.HasPendingEdits));
         BindTab(Cmd.SaveAs, t => _ = SaveAsync(t, saveAs: true), t => !IsSaving(t));
         Bind(Cmd.ShowInFolder, t => Shell.ShowInFolder(t.Session.FilePath!), t => t.Session.FilePath is not null);
+        Bind(Cmd.Share, t => _ = ShareActions.Share(this, t, d => SaveAsync(d)), t => t.Session.IsPdf && !IsSaving(t));
+        BindAlways(Cmd.CustomizeBar, CustomizeBar);
         BindTab(Cmd.CloseDoc, t => { if (_tabs.FirstOrDefault(m => m.Tab == t) is { } m) _ = CloseTabAsync(m); });
         BindTab(Cmd.CloseAll, t => _ = CloseAllAsync());
         Bind(Cmd.ReloadFromDisk, t =>
@@ -2036,6 +2108,8 @@ public partial class MainWindow : Window
         Bind(Cmd.PrevPage, t => t.ActiveView.PreviousPage(), t => t.ActiveView.CurrentPage > 0);
         Bind(Cmd.NextPage, t => t.ActiveView.NextPage(), t => t.ActiveView.CurrentPage < t.ActiveView.PageCount - 1);
         Bind(Cmd.LastPage, t => t.ActiveView.GoToPage(t.ActiveView.PageCount - 1), t => t.ActiveView.CurrentPage < t.ActiveView.PageCount - 1);
+        Bind(Cmd.NextComment, t => t.SelectAdjacentComment(1), t => t.Session.IsPdf && !t.IsOrganizing && t.HasListedComments);
+        Bind(Cmd.PrevComment, t => t.SelectAdjacentComment(-1), t => t.Session.IsPdf && !t.IsOrganizing && t.HasListedComments);
         Bind(Cmd.SplitHorizontal, t => t.SetSplit(t.Split == SplitMode.TopAndBottom ? SplitMode.None : SplitMode.TopAndBottom), t => !t.IsOrganizing && t.PageView.PageCount > 0);
         Bind(Cmd.SplitVertical, t => t.SetSplit(t.Split == SplitMode.SideBySide ? SplitMode.None : SplitMode.SideBySide), t => !t.IsOrganizing && t.PageView.PageCount > 0);
         Bind(Cmd.RemoveSplit, t => t.SetSplit(SplitMode.None), t => t.Split != SplitMode.None);
@@ -2090,6 +2164,7 @@ public partial class MainWindow : Window
         Bind(Cmd.InsertText, t => _ = t.InsertText(), t => t.CanInsertText);
         Bind(Cmd.ReplaceText, t => _ = t.ReplaceSelection(), t => t.CanReplaceText);
         Bind(Cmd.AddNote, t => ToggleTool(t, ViewerTool.AddNote), t => !t.IsOrganizing && t.Session.IsPdf);
+        Bind(Cmd.ReplyToComment, t => { if (t.CommentToReplyTo is { } a) _ = t.ReplyToComment(a); }, t => !t.IsOrganizing && t.Session.IsPdf && t.CommentToReplyTo is not null);
         Bind(Cmd.AddImage, t =>
         {
             if (t.PageView.Tool == ViewerTool.AddImage) t.PageView.Tool = ViewerTool.Hand;

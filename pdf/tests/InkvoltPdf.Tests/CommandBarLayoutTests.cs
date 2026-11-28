@@ -282,4 +282,47 @@ public class CommandBarLayoutTests
         Assert.False(compact);
         Assert.Equal(["Save", "Undo", "Pointer", "Edit", "Convert", "Comment"], shown);
     }
+
+    // ── Customize Command Bar (the Mac's Customize Toolbar…; its UxRulesTests check the defaults against what it offers) ──
+
+    [Fact]
+    public void TheDefaultsAreTheBarAsItComesAndAmongWhatCustomizeOffers()
+    {
+        var bar = CommandBarLayout.Bar.OfType<CommandBarLayout.Entry>().Select(e => e.Id).ToList();
+        var a = CommandBarLayout.Arrange(null);
+        Assert.Equal(bar, a.Shown);
+        Assert.Equal(["Share"], a.Hidden);
+        Assert.Subset(CommandBarLayout.Customizable.ToHashSet(), a.Shown.ToHashSet());
+        Assert.True(CommandBarLayout.IsDefault(CommandBarLayout.Arrange([])));
+        // The separators fall where the bar's table has them.
+        var table = CommandBarLayout.Bar.Select(e => e?.Id).ToList();
+        Assert.Equal(table, CommandBarLayout.WithSeparators(a.Shown));
+    }
+
+    [Fact]
+    public void AnArrangementKeepsTheOrderAndWhatIsHidden()
+    {
+        var a = CommandBarLayout.Arrange(["Convert", "Save", "-Print", "Share", "Edit", "-Redo"]);
+        Assert.Equal(["Convert", "Save", "Share", "Edit", "Undo", "Pointer", "Comment", "FillSign", "Organize", "Protect", "ScanOcr"], a.Shown);
+        Assert.Equal(["Print", "Redo"], a.Hidden);
+        Assert.Equal(CommandBarLayout.Save(a), CommandBarLayout.Save(CommandBarLayout.Arrange(CommandBarLayout.Save(a))));
+        Assert.False(CommandBarLayout.IsDefault(a));
+        Assert.Equal(["Convert", null, "Save", "Share", null, "Edit", null, "Undo", null, "Pointer", null, "Comment"],
+            CommandBarLayout.WithSeparators(a.Shown).Take(12));
+    }
+
+    [Fact]
+    public void ASavedListFromOutsideCantBreakTheBar()
+    {
+        // Unknown names, repeats, an empty "-" and a list far too long: skipped; every entry still has one place.
+        var junk = new List<string> { "Edit", "Edit", "-Edit", "-", "", "Bogus", "-Save" };
+        junk.AddRange(Enumerable.Repeat("Nope", 10_000));
+        junk.Add("-Convert"); // past MaxSaved: ignored
+        var a = CommandBarLayout.Arrange(junk);
+        Assert.Equal("Edit", a.Shown[0]);
+        Assert.Contains("Save", a.Hidden);
+        Assert.Contains("Convert", a.Shown);
+        Assert.Equal(CommandBarLayout.Customizable.Order(), a.Shown.Concat(a.Hidden).Order());
+        Assert.Empty(CommandBarLayout.WithSeparators([]));
+    }
 }

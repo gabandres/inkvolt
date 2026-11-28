@@ -91,6 +91,29 @@ public class DeviceHttpLimitsTests
         Assert.Equal(new Uri(url), Assert.Single(asked));
     }
 
+    /// <summary>
+    /// A link-local IPv6 host with its zone keeps it in the printer's web addresses (written "%25"); a host no web address
+    /// can hold gets a base that never answers, not an exception (the Mac's test).
+    /// </summary>
+    [Fact]
+    public void A_zoned_or_unwritable_host_makes_a_base_without_trapping()
+    {
+        foreach (var host in new[] { "fe80::1%en0", "[fe80::1%en0]" })
+        {
+            using var http = new DeviceHttp(host, new Serving(new MemoryStream([1])));
+            Assert.Equal("http://[fe80::1%25en0]/", Core.Discovery.PrinterAddress.UrlText(http.HttpBase));
+            Assert.Equal("https://[fe80::1%25en0]/", Core.Discovery.PrinterAddress.UrlText(http.HttpsBase));
+            Assert.Equal("fe80::1%en0", http.HttpBase.IdnHost);
+        }
+        foreach (var host in new[] { "fe80::1%e/n", "printer name/with spaces" })
+        {
+            using var http = new DeviceHttp(host, new Serving(new MemoryStream([1])));
+            Assert.NotEmpty(http.HttpBase.Host);
+        }
+        using var web = new DeviceHttp("fe80::1%en0", new Serving(new MemoryStream([1])), web: new Uri("http://[fe80::1%en0]:8080/"));
+        Assert.Equal("http://[fe80::1%25en0]:8080/", Core.Discovery.PrinterAddress.UrlText(web.HttpBase));
+    }
+
     [Theory]
     [InlineData("ftp://192.0.2.10/a")]
     [InlineData("file:///C:/Windows/win.ini")]

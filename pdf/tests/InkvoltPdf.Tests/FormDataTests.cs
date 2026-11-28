@@ -241,4 +241,30 @@ public class FormDataTests
             Directory.Delete(folder, true);
         }
     }
+
+    /// <summary>Text "name" (default "Nobody"), check box "agree", combo "size" and a calculated "total" of "a" (the Mac's FormDataExchangeTests form).</summary>
+    private static byte[] ResetFormSample() => Core2Pdf.Form(
+    [
+        $"<< {W} /FT /Tx /T (name) /V (Alice) /DV (Nobody) /Rect [72 700 300 720] /DA (/Helv 12 Tf 0 g) >>",
+        $"<< {W} /FT /Btn /T (agree) /V /Yes /AS /Yes /Rect [72 650 90 668] /AP << /N << /Yes 10 0 R /Off 10 0 R >> >> >>",
+        $"<< {W} /FT /Ch /Ff 131072 /T (size) /Opt [(S) (M) (L)] /V (L) /DV (M) /Rect [72 600 200 620] /DA (/Helv 12 Tf 0 g) >>",
+        $"<< {W} /FT /Tx /T (a) /V (2) /Rect [72 560 200 580] /DA (/Helv 10 Tf 0 g) >>",
+        $"<< {W} /FT /Tx /Ff 1 /T (total) /Rect [72 520 200 540] /DA (/Helv 10 Tf 0 g) /AA << /C << /S /JavaScript /JS (AFSimple_Calculate\\(\"SUM\", new Array\\(\"a\"\\)\\);) >> >> >>",
+    ], acroExtra: "/CO [9 0 R]", more: [Core2Pdf.Stream("", "/Type /XObject /Subtype /Form /BBox [0 0 18 18]")]);
+
+    /// <summary>Reset Form (Forms menu; the Mac's FormDataExchangeTests): defaults back, calculations run again, only the named fields when named.</summary>
+    [Fact]
+    public void ResetFormRestoresDefaultsAndRecalculates()
+    {
+        var v = Read(FormEditor.ResetForm(ResetFormSample(), null));
+        Assert.Equal("Nobody", v["name"]);
+        Assert.Equal("Off", v["agree"]);
+        Assert.Equal("M", v["size"]);
+        Assert.Equal("", v["a"]);
+        Assert.Equal("0", v["total"]);
+        var some = Read(FormEditor.ResetForm(ResetFormSample(), null, ["name"]));
+        Assert.True(some["name"] == "Nobody" && some["size"] == "L" && some["agree"] == "Yes");
+        var noForm = Core2Pdf.Build(["<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Kids [3 0 R] /Count 1 >>", "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>"]);
+        Assert.Throws<InvalidOperationException>(() => FormEditor.ResetForm(noForm, null));
+    }
 }

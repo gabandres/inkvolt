@@ -270,4 +270,54 @@ public class NetworkSearchTests
         Assert.NotNull(a.Error);
         Assert.Null(a.Host);
     }
+
+    /// <summary>
+    /// A link-local IPv6 address with its zone (the network interface after "%", typed "%25" as RFC 6874 has it, or "%"
+    /// as ipconfig shows it) keeps it (the Mac's tests): the host holds it, and the IPP and web addresses keep it where a
+    /// connection reads it (<see cref="Uri.IdnHost"/>), written "%25" (<see cref="PrinterAddress.UrlText"/>).
+    /// </summary>
+    [Theory]
+    [InlineData("ipp://[fe80::1%25en0]/", "fe80::1%en0", "http://[fe80::1%25en0]:631/ipp/print", null)]
+    [InlineData("ipps://[fe80::1%25en0]:8631/ipp/print", "fe80::1%en0", "https://[fe80::1%25en0]:8631/ipp/print", null)]
+    [InlineData("[fe80::1%25a]:8080", "fe80::1%a", "http://[fe80::1%25a]:8080/ipp/print", null)]
+    [InlineData("http://[fe80::1%25a]:8080", "fe80::1%a", "http://[fe80::1%25a]:8080/ipp/print", "http://[fe80::1%25a]:8080/")]
+    [InlineData("[fe80::1%25en0]", "fe80::1%en0", null, null)]
+    [InlineData("ipp://[fe80::1%12]/", "fe80::1%12", "http://[fe80::1%2512]:631/ipp/print", null)] // Windows' zones are numbers
+    public void A_zoned_IPv6_address_keeps_its_zone(string typed, string host, string? ipp, string? web)
+    {
+        var a = PrinterAddress.Parse(typed);
+        Assert.Null(a.Error);
+        Assert.Equal(host, a.Host?.Trim('[', ']'));
+        Assert.Equal(ipp, a.Ipp is { } i ? PrinterAddress.UrlText(i) : null);
+        if (a.Ipp is { } u) Assert.Equal(host, u.IdnHost);
+        Assert.Equal(web, a.Web is { } w ? PrinterAddress.UrlText(w) : null);
+        // Kept and read back (the remembered printer's IPP address), the zone is still there.
+        if (ipp is not null) Assert.Equal(host, PrinterAddress.ReadUrl(ipp)?.IdnHost);
+    }
+
+    /// <summary>A zone that isn't one (empty, or a character a zone can't hold) is no address, never a URL made from it.</summary>
+    [Theory]
+    [InlineData("ipp://[fe80::1%25]/")]
+    [InlineData("ipp://[fe80::1%25a%2Fb]/")]
+    [InlineData("[fe80::1%25a%2Fb]:8080")]
+    [InlineData("[fe80::1%25]:8080")]
+    public void A_zone_that_isnt_one_is_no_address(string typed)
+    {
+        var a = PrinterAddress.Parse(typed);
+        Assert.NotNull(a.Error);
+        Assert.Null(a.Ipp);
+    }
+
+    [Fact]
+    public void A_URL_host_writes_an_IPv6_zone_as_an_escape()
+    {
+        Assert.Equal("[fe80::1%25en0]", PrinterAddress.UrlHost("fe80::1%en0"));
+        Assert.Equal("[fe80::1%25en0]", PrinterAddress.UrlHost("[fe80::1%en0]"));
+        Assert.Equal("[2001:db8::1]", PrinterAddress.UrlHost("2001:db8::1"));
+        Assert.Equal("printer.local", PrinterAddress.UrlHost("printer.local"));
+        Assert.Null(PrinterAddress.UrlHost("fe80::1%e/n"));
+        Assert.Null(PrinterAddress.UrlHost("fe80::1%"));
+        Assert.Null(PrinterAddress.ReadUrl("http://[fe80::1%25a%2Fb]/"));
+        Assert.Equal("http://192.0.2.10:631/ipp/print", PrinterAddress.UrlText(new Uri("http://192.0.2.10:631/ipp/print")));
+    }
 }

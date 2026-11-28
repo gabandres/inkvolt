@@ -155,7 +155,7 @@ public static class Reflow
 
     private static readonly HashSet<string> Commands = new(StringComparer.Ordinal)
     {
-        "Reflow", "Save", "SaveAs", "ShowInFolder", "CloseDoc", "CloseAll", "ReloadFromDisk", "Print", "PrintWithOptions",
+        "Reflow", "Save", "SaveAs", "ShowInFolder", "Share", "CloseDoc", "CloseAll", "ReloadFromDisk", "Print", "PrintWithOptions",
         "ExportWord", "ExportExcel", "ExportText", "ExportPowerPoint", "ExportHtml", "ExportImages", "Properties",
         "ZoomIn", "ZoomOut", "ActualSize", "FirstPage", "PrevPage", "NextPage", "LastPage", "GoToPage", "Back", "Forward",
         "NavPane", "MoveToNewWindow", "Organize",

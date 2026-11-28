@@ -127,6 +127,7 @@
                                     <MenuItem Command="app:Cmd.SaveAsPdfA" />
                                     <MenuItem Command="app:Cmd.SaveAsPdfA2a" />
                                     <MenuItem Command="app:Cmd.ShowInFolder" />
+                                    <MenuItem Command="app:Cmd.Share" />
                                     <MenuItem Command="app:Cmd.ReloadFromDisk" />
                                     <Separator />
                                     <MenuItem Command="app:Cmd.Print" />
@@ -211,6 +212,8 @@
                                         <MenuItem Command="app:Cmd.ExportFormData" />
                                         <MenuItem Command="app:Cmd.ImportFormData" />
                                         <MenuItem Command="app:Cmd.FillFormsFromCsv" />
+                                        <Separator />
+                                        <MenuItem Command="app:Cmd.ResetForm" />
                                     </MenuItem>
                                     <Separator />
                                     <MenuItem Command="app:Cmd.CommandPalette" />
@@ -249,6 +252,8 @@
                                     <MenuItem Command="app:Cmd.GoToPage" />
                                     <MenuItem Command="app:Cmd.Back" />
                                     <MenuItem Command="app:Cmd.Forward" />
+                                    <MenuItem Command="app:Cmd.NextComment" />
+                                    <MenuItem Command="app:Cmd.PrevComment" />
                                     <Separator />
                                     <MenuItem Header="{x:Static loc:Strings.Main_MenuSplitView}">
                                         <MenuItem x:Name="SplitHorizontalMenu" Command="app:Cmd.SplitHorizontal" />
@@ -269,6 +274,7 @@
                                     </MenuItem>
                                     <MenuItem Command="app:Cmd.ToggleDarkMode" />
                                     <MenuItem x:Name="DarkPagesMenu" Command="app:Cmd.DarkPages" />
+                                    <MenuItem Command="app:Cmd.CustomizeBar" />
                                     <MenuItem x:Name="HighlightFieldsMenu" Command="app:Cmd.HighlightFields" />
                                     <MenuItem Command="app:Cmd.FullScreen" />
                                 </MenuItem>
@@ -329,6 +335,7 @@
                                     <MenuItem Command="app:Cmd.InsertText" />
                                     <MenuItem Command="app:Cmd.ReplaceText" />
                                     <MenuItem x:Name="NoteMenu" Command="app:Cmd.AddNote" />
+                                    <MenuItem Command="app:Cmd.ReplyToComment" />
                                     <!-- Pen, highlighter, shapes, lines, text boxes: filled in code (MainWindow.BuildDrawMenu) -->
                                     <MenuItem x:Name="DrawMenu" Header="{x:Static loc:Strings.Main_MenuDraw}" />
                                     <MenuItem Command="app:Cmd.AddImage" InputGestureText="{x:Static loc:Strings.Main_KeyI}" />
@@ -407,6 +414,11 @@
                                  groups that drop a menu of their tools; what doesn't fit, and the page commands, are in "…" with
                                  their labels. Each button's Tag is its CommandBar entry. -->
                             <app:ToolbarPanel x:Name="DocCommands" VerticalAlignment="Center" MoreAlways="True">
+                                <app:ToolbarPanel.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Command="app:Cmd.CustomizeBar" />
+                                    </ContextMenu>
+                                </app:ToolbarPanel.ContextMenu>
                                 <Button Tag="Save" Style="{StaticResource IconButton}" Command="app:Cmd.Save" ToolTip="{x:Static loc:Strings.Common_Save}" Content="&#xE74E;" />
                                 <Button Tag="Print" Style="{StaticResource IconButton}" Command="app:Cmd.Print" ToolTip="{x:Static loc:Strings.Common_Print}" Content="&#xE749;" />
                                 <Button x:Name="UndoButton" Tag="Undo" Style="{StaticResource IconButton}" Command="app:Cmd.Undo" ToolTip="{x:Static loc:Strings.Common_Undo}" Content="&#xE7A7;" />

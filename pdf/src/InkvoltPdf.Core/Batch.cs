@@ -120,7 +120,7 @@ public static partial class BatchNames
     }
 
     /// <summary><paramref name="text"/> as a file name: characters Windows refuses become "_", trailing dots and spaces go.</summary>
-    private static string Clean(string text, string fallback)
+    internal static string Clean(string text, string fallback)
     {
         var invalid = System.IO.Path.GetInvalidFileNameChars();
         var sb = new StringBuilder(text.Length);

@@ -14,6 +14,16 @@ public static class Cmd
     private static KeyGesture K(Key key, ModifierKeys mods = ModifierKeys.None, string? display = null) =>
         display is null ? new KeyGesture(key, mods) : new KeyGesture(key, mods, display);
 
+    /// <summary>The character a key types in the keyboard layout in use (upper case), or <paramref name="fallback"/>.</summary>
+    private static string KeyText(Key key, char fallback)
+    {
+        var ch = MapVirtualKeyW((uint)KeyInterop.VirtualKeyFromKey(key), 2 /* MAPVK_VK_TO_CHAR */) & 0x7FFFFFFF; // the top bit marks a dead key
+        return ch is > 32 and < 0xD800 ? char.ToUpper((char)ch, CultureInfo.CurrentCulture).ToString() : fallback.ToString();
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern uint MapVirtualKeyW(uint code, uint mapType);
+
     /// <summary>The command's first shortcut as users see it ("Ctrl+S"), or null when it has none.</summary>
     public static string? GestureText(ICommand? command) =>
         (command as RoutedCommand)?.InputGestures.OfType<KeyGesture>().FirstOrDefault()?.GetDisplayStringForCulture(CultureInfo.CurrentCulture);
@@ -59,6 +69,8 @@ public static class Cmd
     public static readonly RoutedUICommand ExportHtml = Make(Strings.Cmd_ExportHtml, nameof(ExportHtml));
     public static readonly RoutedUICommand Properties = Make(Strings.Cmd_Properties, nameof(Properties), K(Key.D, ModifierKeys.Control));
     public static readonly RoutedUICommand ShowInFolder = Make(Strings.Cmd_ShowInFolder, nameof(ShowInFolder));
+    public static readonly RoutedUICommand Share = Make(Strings.Cmd_Share, nameof(Share));
+    public static readonly RoutedUICommand CustomizeBar = Make(Strings.Cmd_CustomizeBar, nameof(CustomizeBar));
     public static readonly RoutedUICommand Exit = Make(Strings.Cmd_Exit, nameof(Exit));
 
     // Edit
@@ -163,6 +175,10 @@ public static class Cmd
     public static readonly RoutedUICommand NextPage = Make(Strings.Cmd_NextPage, nameof(NextPage));
     public static readonly RoutedUICommand LastPage = Make(Strings.Cmd_LastPage, nameof(LastPage), K(Key.End, ModifierKeys.Control));
     public static readonly RoutedUICommand GoToPage = Make(Strings.Cmd_GoToPage, nameof(GoToPage), K(Key.G, ModifierKeys.Control), K(Key.N, ModifierKeys.Control | ModifierKeys.Shift));
+    // The Mac's ⌥⌘] and ⌥⌘[ without Option: Ctrl+Alt is AltGr on Windows. The keys are the ones right of P; the menu
+    // names the character they type in the keyboard layout in use (KeyText).
+    public static readonly RoutedUICommand NextComment = Make(Strings.Cmd_NextComment, nameof(NextComment), K(Key.OemCloseBrackets, ModifierKeys.Control, "Ctrl+" + KeyText(Key.OemCloseBrackets, ']')));
+    public static readonly RoutedUICommand PrevComment = Make(Strings.Cmd_PrevComment, nameof(PrevComment), K(Key.OemOpenBrackets, ModifierKeys.Control, "Ctrl+" + KeyText(Key.OemOpenBrackets, '[')));
     public static readonly RoutedUICommand Back = Make(Strings.Cmd_Back, nameof(Back), K(Key.Left, ModifierKeys.Alt));
     public static readonly RoutedUICommand Forward = Make(Strings.Cmd_Forward, nameof(Forward), K(Key.Right, ModifierKeys.Alt));
 
@@ -231,6 +247,7 @@ public static class Cmd
     public static readonly RoutedUICommand Underline = Make(Strings.Cmd_Underline, nameof(Underline), K(Key.U, ModifierKeys.Control | ModifierKeys.Shift));
     public static readonly RoutedUICommand StrikeOut = Make(Strings.Cmd_StrikeOut, nameof(StrikeOut), K(Key.X, ModifierKeys.Control | ModifierKeys.Shift));
     public static readonly RoutedUICommand AddNote = Make(Strings.Cmd_AddNote, nameof(AddNote), K(Key.C, ModifierKeys.Control | ModifierKeys.Shift));
+    public static readonly RoutedUICommand ReplyToComment = Make(Strings.Cmd_ReplyToComment, nameof(ReplyToComment), K(Key.R, ModifierKeys.Control | ModifierKeys.Shift));
     // Proofreading marks (DocumentTab.Proofreading): a caret with the text to insert; the selection struck out with its replacement
     public static readonly RoutedUICommand InsertText = Make(Strings.Cmd_InsertText, nameof(InsertText));
     public static readonly RoutedUICommand ReplaceText = Make(Strings.Cmd_ReplaceText, nameof(ReplaceText));
@@ -254,6 +271,7 @@ public static class Cmd
     public static readonly RoutedUICommand ExportFormData = Make(Strings.Cmd_ExportFormData, nameof(ExportFormData));
     public static readonly RoutedUICommand ImportFormData = Make(Strings.Cmd_ImportFormData, nameof(ImportFormData));
     public static readonly RoutedUICommand FillFormsFromCsv = Make(Strings.Cmd_FillFormsFromCsv, nameof(FillFormsFromCsv));
+    public static readonly RoutedUICommand ResetForm = Make(Strings.Cmd_ResetForm, nameof(ResetForm));
 
     // Drawing tools. Their keys (P, M, R, E, L, W, V, Z, B, C) are page-view keys like H and T, not commands: see DrawTools.KeyOf.
     public static readonly RoutedUICommand ToolPen = Make(Strings.Cmd_ToolPen, nameof(ToolPen));

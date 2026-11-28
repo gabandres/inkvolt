@@ -929,7 +929,8 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
 - An IPv6 address typed with its zone (`[fe80::1%25en0]`, `ipp://[fe80::1%25en0]/`; hostile-input review, 2026-11-23,
   where Apple's URLComponents trapped on the `%`) keeps it: the printer's host is `fe80::1%en0`, and its IPP and web
   addresses write it `%25` (`PrinterAddress.urlHost`, which `DeviceHttp` uses too; a host no URL can hold gets the base
-  `unusable.invalid`, never a trap). Windows drops the zone (.NET's `Uri.Host`). A zone that isn't RFC 6874's unreserved
+  `unusable.invalid`, never a trap). Windows keeps it too (later: `PrinterAddress.HostOf`, `UrlHost`, `UrlText`, with these
+  tests; .NET holds a zone only in `Uri.IdnHost`). A zone that isn't RFC 6874's unreserved
   characters is no address. Not checked: connecting to a link-local printer by its zone (the transports' scope, above).
   The same review: Print a PDF's layouts refuse a PDF past `SheetPrint.maxSides` on its page count first
   (`SheetPrint.tooMany(_:pages:)`), then measure its pages once (off the main thread past 200 pages); `{n:D<n>}` pads to
@@ -1255,8 +1256,8 @@ From the steps, besides the sections below:
   Signature menu lists them with their pictures, Draw and Type make a new one (disabled with three saved), and Delete a
   Saved Signature asks first; the menu bar's Tools › Place Saved Signature lists them too; Sign Digitally's Image picks
   any saved signature (Windows: the same). Form data goes in and out as XFDF and FDF only (Windows also CSV and JSON), through
-  `FormEditor.resetForm`, `exportData` and `importData`, which have no .NET counterpart file (their tests:
-  FormDataExchangeTests); a choice field opens as a menu under the field (Windows: a drop-down editor); messages the
+  `FormEditor.resetForm`, `exportData` and `importData` (their tests: FormDataExchangeTests; Windows' Reset Form
+  came later as `FormEditor.ResetForm`, tested by FormDataTests.ResetFormRestoresDefaultsAndRecalculates); a choice field opens as a menu under the field (Windows: a drop-down editor); messages the
   Windows app shows as notifications go to a bar over the pages.
 - The app (D7 part d): the close and quit questions are AppKit's (NSDocument: Save, Don't Save, Cancel for each document;
   quitting with several changed documents first offers to review them); the self-test answers them through the same
@@ -1626,6 +1627,13 @@ Decided 2026-11-03 in the Mac UX review (`docs/UX-REVIEW.md`, branch `mac-ux`; M
   PdfCore): sidebar, zoom, Highlight, Markup, Fill & Sign, Share, Search, customizable. Windows keeps its one-row command
   bar with every tool. The Mac's tool strip is the markup toolbar, hidden until asked for (⇧⌘A, Preview's key) or until a
   markup tool is picked; its groups drop from the right in a narrow window.
+- The inspector (a popover for the selected comment or link) has no Windows twin: there the Comments pane shows a
+  comment's kind, author, date and replies, Edit Text… and Delete change it, the drawing bar its color, width, opacity
+  and text size, and Edit Link… a link; Reply to Comment… (Ctrl+Shift+R, the pane's Reply…) came later, for the
+  inspector's reply field.
+- Share… shares the file as saved, and beeps for a document never saved. Windows' File › Share… (later) asks first when
+  there are changes not saved (Save and Share, or Share a Copy) and shares a never-saved document as a copy
+  (`DocumentShare`, DocumentShareTests).
 - The Tools menu groups the tools in submenus (Annotate, Fill & Sign, Redact, Forms, Measure, Accessibility, AI
   Assistant), File the new PDFs (New PDF) and the PDF/A saves (Save as PDF/A); Windows' ribbon groups differ.
 - The start page shows four tool cards (Fill & sign, Edit text & images, Combine files, Create a PDF), the other six behind
@@ -2215,7 +2223,9 @@ Shots for the owner: `docs/design/mac/`.
   give way to the label colour (Windows: high contrast); Differentiate Without Color changes nothing, since every
   coloured icon has its label. The toolbar's identifier changed (`InkvoltPdfDocumentBar`), so a toolbar customized
   before starts from the new defaults; the old Highlight, Fill & Sign, Edit, Redact and Organize buttons are replaced by
-  their groups (Markup, Zoom, Share and the rest stay in Customize Toolbar…).
+  their groups (Markup, Zoom, Share and the rest stay in Customize Toolbar…). Windows' View › Customize Command Bar…
+  (later) is the same choice on its bar: the entries ticked and ordered, Share added (`CommandBarLayout.Arrange`,
+  CommandBarLayoutTests); what isn't on the bar is in its "…".
 - **One-click jobs.** Convert › Word, Excel, PowerPoint, text, HTML: `ExportTarget.reserve` makes name.docx next to the PDF
   with `open(O_CREAT | O_EXCL | O_NOFOLLOW)` (a regular file or nothing), "name (2).docx" when taken, Documents when the
   PDF isn't saved or its folder refuses; a Windows device name (`ReservedFileNames`: CON, COM¹, CONIN$…) is refused, so

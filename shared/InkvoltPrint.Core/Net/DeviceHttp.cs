@@ -30,8 +30,10 @@ public sealed class DeviceHttp : IDisposable
         Host = host;
         _pin = pin;
         _ownTransport = handler is not null;
-        HttpBase = new UriBuilder(Uri.UriSchemeHttp, host, web is { IsAbsoluteUri: true, Scheme: "http" } ? web.Port : -1).Uri;
-        HttpsBase = new UriBuilder(Uri.UriSchemeHttps, host, web is { IsAbsoluteUri: true, Scheme: "https" } ? web.Port : -1).Uri;
+        // An IPv6 zone stays in the base (PrinterAddress); a host no URL can hold gets one that never answers, not an exception.
+        var urlHost = Discovery.PrinterAddress.BuilderHost(host) ?? "unusable.invalid";
+        HttpBase = new UriBuilder(Uri.UriSchemeHttp, urlHost, web is { IsAbsoluteUri: true, Scheme: "http" } ? web.Port : -1).Uri;
+        HttpsBase = new UriBuilder(Uri.UriSchemeHttps, urlHost, web is { IsAbsoluteUri: true, Scheme: "https" } ? web.Port : -1).Uri;
         _client = NewClient(handler ?? CreateHandler(host, (c, e) => ValidateCertificate(c, e, HttpsBase.Port)));
     }
 

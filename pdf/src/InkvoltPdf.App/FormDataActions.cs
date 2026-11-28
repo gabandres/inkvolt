@@ -71,6 +71,24 @@ internal static class FormDataActions
         Prompt.Info(host, Strings.FormData_Imported, string.Join("\n\n", [summary, .. lines, .. result.Notes]));
     }
 
+    /// <summary>
+    /// Edit › Forms › Reset Form… (the Mac's Reset Form): asks, then every field back to its default value as one edit
+    /// (<see cref="FormEditor.ResetForm"/>, undoable).
+    /// </summary>
+    public static async Task Reset(MainWindow host, DocumentTab tab)
+    {
+        if (!tab.Session.IsPdf || !await tab.SettleAsync()) return;
+        if (FormEditor.DataFields(tab.Session.Data, tab.Session.Password).Count == 0)
+        {
+            Prompt.Info(host, Strings.FormData_NoFields, Strings.FormData_NoFieldsBody);
+            return;
+        }
+        if (!Prompt.Confirm(host, Strings.FormData_ResetTitle, Strings.FormData_ResetBody, Strings.Common_Reset)) return;
+        var outcome = await tab.TryEdit(PdfStrings.Form_UndoResetForm, (d, pw) => FormEditor.ResetForm(d, pw), contentOnly: true, quiet: true);
+        Log.Write($"Reset form: {outcome}");
+        if (outcome is EditOutcome.Done or EditOutcome.NoChange) host.ShowStatus(Strings.FormData_ResetDone);
+    }
+
     public static async Task FillFromCsv(MainWindow host, DocumentTab tab)
     {
         if (!tab.Session.IsPdf || !await tab.SettleAsync()) return;

@@ -253,6 +253,48 @@
   <data name="Cmd_ShowInFolder" xml:space="preserve">
     <value>Mostrar en la _carpeta</value>
   </data>
+  <data name="Cmd_Share" xml:space="preserve">
+    <value>Compar_tir…</value>
+  </data>
+  <data name="Cmd_CustomizeBar" xml:space="preserve">
+    <value>Personali_zar la barra de comandos…</value>
+  </data>
+  <data name="Bar_CustomizeTitle" xml:space="preserve">
+    <value>Personalizar la barra de comandos</value>
+  </data>
+  <data name="Bar_CustomizeNote" xml:space="preserve">
+    <value>Marca lo que muestra la barra, de izquierda a derecha en este orden; Subir y Bajar (o Alt+Arriba y Alt+Abajo) lo cambian. Lo que no marques queda en el menú "…" de la barra, y todos los comandos siguen en los menús y en la paleta de comandos (Ctrl+K).</value>
+  </data>
+  <data name="Bar_CustomizeList" xml:space="preserve">
+    <value>Barra de comandos</value>
+    <comment>The list's name, for a screen reader</comment>
+  </data>
+  <data name="Bar_MoveUp" xml:space="preserve">
+    <value>Subir</value>
+  </data>
+  <data name="Bar_MoveDown" xml:space="preserve">
+    <value>Bajar</value>
+  </data>
+  <data name="Share_UnsavedTitle" xml:space="preserve">
+    <value>¿Compartir {0} con sus cambios?</value>
+    <comment>{0} the document's name</comment>
+  </data>
+  <data name="Share_UnsavedBody" xml:space="preserve">
+    <value>Tiene cambios sin guardar. Guárdalo y comparte el archivo, o comparte una copia con los cambios y deja el archivo como está.</value>
+  </data>
+  <data name="Share_SaveAndShare" xml:space="preserve">
+    <value>Guardar y compartir</value>
+  </data>
+  <data name="Share_Copy" xml:space="preserve">
+    <value>Compartir una copia</value>
+  </data>
+  <data name="Share_CantTitle" xml:space="preserve">
+    <value>No se pudo compartir {0}</value>
+    <comment>{0} the document's name</comment>
+  </data>
+  <data name="Share_CantBody" xml:space="preserve">
+    <value>Compartir de Windows no está disponible aquí. Guarda el archivo y adjúntalo desde su carpeta (Archivo › Mostrar en la carpeta).</value>
+  </data>
   <data name="Cmd_Exit" xml:space="preserve">
     <value>_Salir</value>
   </data>
@@ -394,6 +436,12 @@
   <data name="Cmd_NextPage" xml:space="preserve">
     <value>Página _siguiente</value>
   </data>
+  <data name="Cmd_NextComment" xml:space="preserve">
+    <value>Comentario sig_uiente</value>
+  </data>
+  <data name="Cmd_PrevComment" xml:space="preserve">
+    <value>Com_entario anterior</value>
+  </data>
   <data name="Cmd_LastPage" xml:space="preserve">
     <value>Ú_ltima página</value>
   </data>
@@ -532,6 +580,30 @@
   <data name="Cmd_AddNote" xml:space="preserve">
     <value>Agregar _nota</value>
   </data>
+  <data name="Cmd_ReplyToComment" xml:space="preserve">
+    <value>Responder al co_mentario…</value>
+  </data>
+  <data name="Review_ReplyTitle" xml:space="preserve">
+    <value>Responder al comentario</value>
+  </data>
+  <data name="Review_ReplyTo" xml:space="preserve">
+    <value>Para: {0}</value>
+    <comment>{0} the comment's kind, author and text, shortened</comment>
+  </data>
+  <data name="Review_ReplyNote" xml:space="preserve">
+    <value>Aparece debajo del comentario, en la página {0}; otras apps de PDF también la muestran como respuesta. Autor: {1}.</value>
+    <comment>{0} page label, {1} the author name</comment>
+  </data>
+  <data name="Review_ReplyEmpty" xml:space="preserve">
+    <value>Escribe la respuesta.</value>
+  </data>
+  <data name="Review_ReplyButton" xml:space="preserve">
+    <value>Responder</value>
+    <comment>The reply dialog's button</comment>
+  </data>
+  <data name="Tab_MenuReply" xml:space="preserve">
+    <value>_Responder…</value>
+  </data>
   <data name="Cmd_Redact" xml:space="preserve">
     <value>_Eliminar información confidencial</value>
   </data>
@@ -573,6 +645,18 @@
   </data>
   <data name="Cmd_FillFormsFromCsv" xml:space="preserve">
     <value>Llenar formularios desde _CSV…</value>
+  </data>
+  <data name="Cmd_ResetForm" xml:space="preserve">
+    <value>_Restablecer formulario…</value>
+  </data>
+  <data name="FormData_ResetTitle" xml:space="preserve">
+    <value>¿Restablecer el formulario?</value>
+  </data>
+  <data name="FormData_ResetBody" xml:space="preserve">
+    <value>Cada campo vuelve a su valor predeterminado. Puedes deshacerlo.</value>
+  </data>
+  <data name="FormData_ResetDone" xml:space="preserve">
+    <value>Se restableció el formulario.</value>
   </data>
   <data name="Cmd_ToolPen" xml:space="preserve">
     <value>_Pluma</value>

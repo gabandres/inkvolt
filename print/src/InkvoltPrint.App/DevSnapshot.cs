@@ -34,6 +34,7 @@ namespace InkvoltPrint.App;
 /// <c>--clipboard text|picture</c> prints made-up clipboard content (roadmap 4.13); <c>--hand-duplex</c> (with <c>--sample-pdf</c>) waits for two-sided by
 /// hand to be offered and ticks it, <c>--hand-duplex-print</c> then prints with the prompt answered (roadmap 4.2, demo only);
 /// <c>--dialog settings|help|whatsnew|report|addprinter|confirm|pro|recent|printlog|setup|hand-duplex|hand-duplex-up [--dialog-wait ms]</c> renders that window instead (<c>pro</c>: Help › Inkvolt Pro;
+/// <c>addprinter</c> with <c>--address text</c>: that address typed and Add pressed, the outcome logged;
 /// <c>setup</c>: Set up a new printer's Wi-Fi, with <c>--setup-step connect|secured|back|stuck</c> on the made-up Wi-Fi, <see cref="SetupStepAsync"/>;
 /// <c>--record</c> with <c>report</c> records the printer shown first; <c>--pro-key KEY</c> enters a key first, <c>--pro-enforce</c> shows the wording with the gate on; demo keeps the key in memory); <c>--a11y-audit findings.txt</c> writes the
 /// shown window's controls without an accessible name or under 24 × 24 (<see cref="UiInspection"/>) before the snapshot;
@@ -567,6 +568,13 @@ internal static class DevSnapshot
                 dialog.Owner = window;
                 dialog.Show();
                 if (dialog is SnmpAccessDialog snmpCheck && name.StartsWith("snmp-", StringComparison.Ordinal)) await snmpCheck.DevSaveAsync();
+                // --dialog addprinter --address text: that address typed and Add pressed (its error, or the printer it found, shows).
+                if (dialog.DataContext is ViewModels.AddPrinterViewModel add && Value(args, "--address") is { } typed)
+                {
+                    add.Address = typed;
+                    if (add.AddAddressCommand.CanExecute(null)) await add.AddAddressCommand.ExecuteAsync(null);
+                    Log.Write($"Snapshot: Add a printer at '{typed}': {add.AddressError ?? "added"}");
+                }
                 if (dialog is PrinterSetupWindow setup && Value(args, "--setup-step") is { } step) await SetupStepAsync(setup.Model, dialogMain.Pc, step);
                 // Add a printer searches the (made-up) network first: about three seconds.
                 await Task.Delay(Value(args, "--dialog-wait") is { } ms ? TimeSpan.FromMilliseconds(int.Parse(ms)) : TimeSpan.FromSeconds(name == "addprinter" ? 5 : 1));

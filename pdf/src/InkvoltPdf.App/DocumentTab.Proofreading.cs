@@ -31,9 +31,9 @@ public partial class DocumentTab
         };
     }
 
-    /// <summary>The Comments pane's items as listed (title and text), for the developer script.</summary>
+    /// <summary>The Comments pane's items as listed (title and text; * the chosen one), for the developer script.</summary>
     internal string DevCommentList() =>
-        $"{_commentItems.Count} items" + string.Concat(_commentItems.Select(c => $" | {c.Title}: '{c.Contents.Replace('\n', ' ')}'"));
+        $"{_commentItems.Count} items" + string.Concat(_commentItems.Select(c => $" | {(CommentList.SelectedItem == c ? "*" : "")}{c.Title}: '{c.Contents.Replace('\n', ' ')}'"));
 
     /// <summary>Insert Text at the viewer's insertion point (<see cref="PageViewer.InsertionPoint"/>).</summary>
     public async Task<bool> InsertText(string? text = null)

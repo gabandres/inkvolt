@@ -13,6 +13,23 @@ public sealed record FormDataField(string Name, FormFieldKind Kind, string Value
 
 public static partial class FormEditor
 {
+    /// <summary>
+    /// Reset Form (Forms menu): the fields (all, or the named ones) back to their default values (/DV, else empty or Off),
+    /// as a ResetForm action does, with calculations run again. The document as it was when nothing changed.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The PDF has no fillable form.</exception>
+    public static byte[] ResetForm(byte[] data, string? password, IReadOnlyList<string>? fields = null)
+    {
+        using var doc = Open(data, password, PdfDocumentOpenMode.Modify);
+        var acro = PdfObj.Dict(doc.Internals.Catalog.Elements["/AcroForm"]);
+        var all = new List<Field>();
+        Collect(doc, acro, all);
+        if (all.Count == 0) throw new InvalidOperationException(PdfStrings.Form_NoFillableForm);
+        var runner = new FormActionRunner(doc, acro, all, null, data);
+        runner.Reset(fields, exclude: false);
+        return runner.Finish().Data ?? data;
+    }
+
     /// <summary>The fields that hold data (not push buttons or signatures), in the form's order, each name once.</summary>
     public static IReadOnlyList<FormDataField> DataFields(byte[] data, string? password)
     {

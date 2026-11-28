@@ -6,6 +6,11 @@ each English line, every version (`WhatsNewSpanishTests` checks it): a line adde
 here. The voice is `docs/SPANISH-REVIEW.md`'s (informal *tú*, the app's own words for its commands).
 
 ## Next
+- Ver › Personalizar la barra de comandos… (o clic derecho en la barra) te deja elegir qué botones muestra la barra de comandos y en qué orden, y agregar Compartir. Lo que quites queda en el menú "…" de la barra.
+- Revisar › Responder al comentario… (Ctrl+Shift+R, o clic derecho en un comentario del panel Comentarios) agrega tu respuesta debajo de un comentario, como Acrobat muestra las respuestas.
+- Archivo › Compartir… envía el PDF a la hoja de compartir de Windows (correo, Compartir en las proximidades, Teams y otras apps). Si tiene cambios sin guardar, te pregunta si quieres guardarlo primero o compartir una copia con ellos.
+- Ver › Comentario siguiente y Comentario anterior (Ctrl+] y Ctrl+[) van de un comentario al siguiente y te lo muestran en su página.
+- Edición › Formularios › Restablecer formulario… devuelve cada campo de un formulario a su valor predeterminado, en un solo paso que puedes deshacer.
 
 ## 1.19.1
 - Cuando una actualización de Windows deja roto el controlador de una impresora (y Windows ya no puede imprimir en ella desde ninguna app), Imprimir te lo dice antes de abrir el cuadro de impresión, te explica cómo arreglar la impresora y te ofrece imprimir el documento con Inkvolt Print, que lo envía directamente a una impresora de red.

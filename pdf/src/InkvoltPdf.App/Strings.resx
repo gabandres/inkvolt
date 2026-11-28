@@ -253,6 +253,48 @@
   <data name="Cmd_ShowInFolder" xml:space="preserve">
     <value>Show in _Folder</value>
   </data>
+  <data name="Cmd_Share" xml:space="preserve">
+    <value>S_hare…</value>
+  </data>
+  <data name="Cmd_CustomizeBar" xml:space="preserve">
+    <value>Customi_ze Command Bar…</value>
+  </data>
+  <data name="Bar_CustomizeTitle" xml:space="preserve">
+    <value>Customize the command bar</value>
+  </data>
+  <data name="Bar_CustomizeNote" xml:space="preserve">
+    <value>Tick what the bar shows, left to right in this order; Move Up and Move Down (or Alt+Up and Alt+Down) change it. What isn't ticked is in the bar's "…" menu, and every command stays in the menus and the command palette (Ctrl+K).</value>
+  </data>
+  <data name="Bar_CustomizeList" xml:space="preserve">
+    <value>Command bar</value>
+    <comment>The list's name, for a screen reader</comment>
+  </data>
+  <data name="Bar_MoveUp" xml:space="preserve">
+    <value>Move Up</value>
+  </data>
+  <data name="Bar_MoveDown" xml:space="preserve">
+    <value>Move Down</value>
+  </data>
+  <data name="Share_UnsavedTitle" xml:space="preserve">
+    <value>Share {0} with its changes?</value>
+    <comment>{0} the document's name</comment>
+  </data>
+  <data name="Share_UnsavedBody" xml:space="preserve">
+    <value>It has changes that aren't saved. Save it and share the file, or share a copy with the changes and leave the file as it is.</value>
+  </data>
+  <data name="Share_SaveAndShare" xml:space="preserve">
+    <value>Save and Share</value>
+  </data>
+  <data name="Share_Copy" xml:space="preserve">
+    <value>Share a Copy</value>
+  </data>
+  <data name="Share_CantTitle" xml:space="preserve">
+    <value>Couldn't share {0}</value>
+    <comment>{0} the document's name</comment>
+  </data>
+  <data name="Share_CantBody" xml:space="preserve">
+    <value>Windows' Share isn't available here. Save the file and attach it from its folder (File › Show in Folder).</value>
+  </data>
   <data name="Cmd_Exit" xml:space="preserve">
     <value>E_xit</value>
   </data>
@@ -395,6 +437,12 @@
   <data name="Cmd_NextPage" xml:space="preserve">
     <value>_Next Page</value>
   </data>
+  <data name="Cmd_NextComment" xml:space="preserve">
+    <value>Ne_xt Comment</value>
+  </data>
+  <data name="Cmd_PrevComment" xml:space="preserve">
+    <value>Previo_us Comment</value>
+  </data>
   <data name="Cmd_LastPage" xml:space="preserve">
     <value>_Last Page</value>
   </data>
@@ -533,6 +581,30 @@
   <data name="Cmd_AddNote" xml:space="preserve">
     <value>Add _Note</value>
   </data>
+  <data name="Cmd_ReplyToComment" xml:space="preserve">
+    <value>R_eply to Comment…</value>
+  </data>
+  <data name="Review_ReplyTitle" xml:space="preserve">
+    <value>Reply to comment</value>
+  </data>
+  <data name="Review_ReplyTo" xml:space="preserve">
+    <value>To: {0}</value>
+    <comment>{0} the comment's kind, author and text, shortened</comment>
+  </data>
+  <data name="Review_ReplyNote" xml:space="preserve">
+    <value>Listed under the comment, on page {0}; other PDF apps show it as a reply too. Author: {1}.</value>
+    <comment>{0} page label, {1} the author name</comment>
+  </data>
+  <data name="Review_ReplyEmpty" xml:space="preserve">
+    <value>Type the reply.</value>
+  </data>
+  <data name="Review_ReplyButton" xml:space="preserve">
+    <value>Reply</value>
+    <comment>The reply dialog's button</comment>
+  </data>
+  <data name="Tab_MenuReply" xml:space="preserve">
+    <value>_Reply…</value>
+  </data>
   <data name="Cmd_Redact" xml:space="preserve">
     <value>_Redact</value>
   </data>
@@ -574,6 +646,18 @@
   </data>
   <data name="Cmd_FillFormsFromCsv" xml:space="preserve">
     <value>Fill Forms from _CSV…</value>
+  </data>
+  <data name="Cmd_ResetForm" xml:space="preserve">
+    <value>_Reset Form…</value>
+  </data>
+  <data name="FormData_ResetTitle" xml:space="preserve">
+    <value>Reset the form?</value>
+  </data>
+  <data name="FormData_ResetBody" xml:space="preserve">
+    <value>Every field goes back to its default value. You can undo this.</value>
+  </data>
+  <data name="FormData_ResetDone" xml:space="preserve">
+    <value>The form was reset.</value>
   </data>
   <data name="Cmd_ToolPen" xml:space="preserve">
     <value>_Pen</value>
