@@ -1263,6 +1263,23 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             }
         }
         content.flushNudge()
+        // The page not read since the document changed (every edit, undo and redo clears what was read; drawing the page
+        // reads it again, and a hidden or sleeping screen draws nothing): it is read now, then the press counts as a
+        // click. Windows drops such a press and asks for the page; here it isn't lost. No drag starts from it: the button
+        // may be up by then.
+        guard content.isRead(page) else {
+            Task { [weak self] in
+                _ = await content.ensure(page)
+                guard let self, self.tool == .editContent, self.content === content, content.isRead(page) else { return }
+                self.contentPress(content, page, p, drags: false)
+            }
+            return
+        }
+        contentPress(content, page, p, drags: true)
+    }
+
+    /// A press on a page whose content is read: text is edited, a picture selected (and, `drags`, dragged).
+    private func contentPress(_ content: ContentEditing, _ page: Int, _ p: PointD, drags: Bool) {
         let image = content.image(page: page, p)
         // Between a paragraph's lines: the paragraph.
         if let run = content.run(page: page, p) ?? content.paragraph(page: page, p)?.runs.first, !content.isSelected(image) {
@@ -1271,7 +1288,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             return
         }
         content.select(image)
-        if let image, image.blocked == nil { drag = .contentMove(page: page, start: p, box: image.box, by: PointD(0, 0)) }
+        if drags, let image, image.blocked == nil { drag = .contentMove(page: page, start: p, box: image.box, by: PointD(0, 0)) }
     }
 
     private func canMove(_ id: String) -> Bool {

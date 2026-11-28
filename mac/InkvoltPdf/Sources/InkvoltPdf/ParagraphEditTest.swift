@@ -4,7 +4,7 @@ import PrintCore
 
 /// The self-test's scenario for roadmap 2.1, paragraph editing (`--edit`, once; `--only-paragraph-edit` runs it alone), on a
 /// page made here (a heading, a paragraph of four lines in Helvetica, a line under it): Edit Text & Images chosen, a click
-/// on the paragraph's second line rewrites it with twenty words more (it rewraps in its box, what follows stays, one undo
+/// on the paragraph's second line (before the page is read again, as right after an edit) rewrites it with twenty words more (it rewraps in its box, what follows stays, one undo
 /// step that undo and redo take back and forth); the paragraph editor opened over it, bold, a color and a bigger size
 /// given to words through its look bar and the note under it read, then applied (the looks read back as spans); new text
 /// that would run into the line below declined, then confirmed; a character Helvetica lacks drawn from a font on this
@@ -146,12 +146,15 @@ struct ParagraphEditTest {
         let text = Self.body + " " + Self.twenty
         let edits = c.editor.finishedEdits
         c.content.testParagraph = (text, nil)
+        // The click comes before the page is read again, as right after an edit (which clears what was read) while the
+        // screen draws nothing: it must still count (after the turning step it was lost).
+        c.content.invalidate()
         await click(c, PointD(p.lines[1].x + 20, p.lines[1].centerY))
         let written = await waitEdits(c, edits + 1)
         await settle(c)
         let q = paragraph(c, "The quick")
         let next2 = read(c).runs.first { $0.text == "Next block starts here" }
-        check(written && q?.text == text, "a click on its second line rewrites it (\(q?.lines.count ?? 0) lines, was \(p.lines.count))")
+        check(written && q?.text == text, "a click on its second line, before the page is read again, rewrites it (\(q?.lines.count ?? 0) lines, was \(p.lines.count))")
         check((q?.lines.count ?? 0) > p.lines.count && (q?.box.right ?? 999) <= p.box.right + 0.5, "it rewraps inside its box")
         check(next2.map { abs($0.box.y - next.box.y) < 0.01 } == true, "the line under it stays where it was")
         let undo = c.window?.undoManager

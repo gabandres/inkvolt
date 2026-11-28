@@ -20,6 +20,8 @@ their Spanish, line for line, shown when the app runs in Spanish: an English lin
 - Translate with AI keeps up to three different colours or fonts in one paragraph (a red word and a name in Courier, say), each as it was; only the first was kept before.
 - Translate with AI keeps more of what a small local model sends back: bold and italic it marks in its own way, and a label or name it puts in angle brackets, which used to be dropped.
 - Titles in URW's bold Times (NimbusRomNo9L-Medi, as in many LaTeX papers) stay bold when translated or converted to Word, and LaTeX's math letters come out in italic.
+- New letter pairs typed into kerned text get the font's own kerning ("To", "AV"), so edited lines are set as tightly as the lines around them.
+- Edit Text & Images rewraps a paragraph that mixes sizes or colors (a bigger word, a word in red, a subscript) as one paragraph: each part keeps its size, color and height, and a color stays exactly as the PDF had it.
 - Redaction no longer lets the width of what you removed show. Text after a black box used to stay where it was, so the gap (and the box itself) could tell how long the hidden words were. Now each redacted line is laid out again: its words keep their order, spaces are even, and the box's width is rounded, so the line looks the same whatever was under it.
 - Check Redaction also finds black boxes drawn into a page's picture (by tools that turn pages into images, or on a scan) with text beside them that may give the hidden width away.
 - Make Accessible finds rows that share a label in tables drawn without lines (a region over its countries) and tags the label as spanning those rows, so a screen reader reads it with each of them.

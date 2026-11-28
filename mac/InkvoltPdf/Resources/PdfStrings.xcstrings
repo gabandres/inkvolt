@@ -22925,13 +22925,13 @@
         }
       }
     },
-    "it mixes fonts, sizes or colors, and this version rewrites a paragraph in one font family only": {
+    "it has text of another size set off its line, or painted with a pattern, that can't be rewrapped with the rest": {
       "extractionState": "manual",
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "mezcla fuentes, tamaños o colores, y esta versión reescribe un párrafo en una sola familia de fuentes"
+            "value": "tiene texto de otro tamaño fuera de su línea, o pintado con un patrón, que no puede reacomodarse con el resto"
           }
         }
       }

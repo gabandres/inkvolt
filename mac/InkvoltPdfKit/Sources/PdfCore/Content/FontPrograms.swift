@@ -61,6 +61,9 @@ final class TrueTypeProgram: FontProgram, @unchecked Sendable {
     let numGlyphs: Int
     let unitsPerEm: Double
 
+    /// The program as embedded (for the tables read elsewhere: `PairKerning`).
+    var bytes: [UInt8] { b.b }
+
     private init(_ b: FontBytes, _ numGlyphs: Int, _ upem: Double, _ loca: [Int], _ advances: [Int]) {
         self.b = b
         self.numGlyphs = numGlyphs

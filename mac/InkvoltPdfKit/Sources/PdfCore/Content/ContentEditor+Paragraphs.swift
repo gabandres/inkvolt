@@ -10,7 +10,10 @@ public enum ParagraphAlign: Sendable, Equatable { case left, center, right, just
 public struct TextParagraph: Sendable {
     public let pageIndex: Int
     /// Its text runs (line by line, left to right).
-    public internal(set) var runs: [TextRun]
+    public internal(set) var runs: [TextRun] {
+        didSet { leadStore = runs.isEmpty ? nil : ContentEditor.plainRun(runs) }
+    }
+    private var leadStore: TextRun?
     /// Each line's box, top to bottom.
     public internal(set) var lines: [RectD]
     /// Its text, the lines joined by a space (a line ending in a hyphen joins the next without one).
@@ -41,13 +44,14 @@ public struct TextParagraph: Sendable {
     /// above and below its baseline (points).
     var left = 0.0, right = 0.0, center = 0.0, ascent = 0.0, descent = 0.0
     /// The kerning its own text carried, by pair of codes (see `ContentEditor.kerning`): rewritten lines keep it where
-    /// the pair survives.
-    var kerning: [ContentEditor.CodePair: Double]?
+    /// the pair survives, and new pairs get the font's own (see `ContentEditor.Kerns`).
+    var kerning: ContentEditor.Kerns?
 
     init(pageIndex: Int, runs: [TextRun], lines: [RectD], text: String, box: RectD, align: ParagraphAlign, lineStep: Double,
          firstIndent: Double, blocked: String?) {
         self.pageIndex = pageIndex
         self.runs = runs
+        leadStore = runs.isEmpty ? nil : ContentEditor.plainRun(runs)
         self.lines = lines
         self.text = text
         self.box = box
@@ -57,11 +61,11 @@ public struct TextParagraph: Sendable {
         self.blocked = blocked
     }
 
-    /// Its type size on the page (points).
-    public var fontSize: Double { runs.first?.fontSize ?? 0 }
+    /// Its type size on the page (points): its own text's (`lead`), not a bigger word's.
+    public var fontSize: Double { runs.isEmpty ? 0 : lead.fontSize }
 
-    /// Its run in its own font and look (see `ContentEditor.plainRun`): its font, style and color.
-    public var lead: TextRun { ContentEditor.plainRun(runs) }
+    /// Its run in its own font and look (see `ContentEditor.plainRun`): its font, style, size and color.
+    public var lead: TextRun { leadStore ?? ContentEditor.plainRun(runs) }
 
     /// What `text` would look like here, its stretches with the looks `spans` give them: its box, line count, missing
     /// characters and what it would run into.
@@ -116,8 +120,14 @@ extension ContentEditor {
         var text: [UInt16]
         /// Where each run's text starts in `text`.
         var starts: [Int] = [0]
-        /// `plainRun(runs)` kept up to date as runs are added (a crafted line of 200,000 runs isn't tallied again for each).
-        private var tally: [ObjectIdentifier: (chars: Int, styled: Int, first: TextRun, seen: Int)] = [:]
+        /// `plainRun(runs)` kept up to date as runs are added (a crafted line of 200,000 runs isn't tallied again for each):
+        /// per font its text, and per size and color in it the room its text takes and its first run, the top one kept.
+        private struct Group {
+            var chars: Int, styled: Int, first: TextRun, seen: Int
+            var subs: [SizeAndColor: (room: Double, first: TextRun)] = [:]
+            var topSub: SizeAndColor?
+        }
+        private var tally: [ObjectIdentifier: Group] = [:]
         private var top: ObjectIdentifier?
         private var firstPlain: TextRun?, firstOwn: TextRun?
 
@@ -133,7 +143,7 @@ extension ContentEditor {
         /// another family (a symbol, a name set apart) is still a line of the paragraph's font.
         var lead: TextRun {
             if let main { return main }
-            if let top { return tally[top]!.first }
+            if let top, let g = tally[top], let sub = g.topSub, let s = g.subs[sub] { return s.first }
             return firstPlain ?? firstOwn ?? runs[0]
         }
 
@@ -145,13 +155,23 @@ extension ContentEditor {
             if firstPlain == nil { firstPlain = r }
             guard let f = r.font else { return }
             let key = ObjectIdentifier(f)
-            var g = tally[key] ?? (0, f.bold || f.italic ? 1 : 0, r, tally.count)
-            g.chars += trimmed(r.text).utf16.count
+            var g = tally[key] ?? Group(chars: 0, styled: f.bold || f.italic ? 1 : 0, first: r, seen: tally.count)
+            let n = trimmed(r.text).utf16.count
+            g.chars += n
             if order(r.id) < order(g.first.id) { g.first = r }
-            tally[key] = g
-            func weight(_ g: (chars: Int, styled: Int, first: TextRun, seen: Int)) -> (Int, Int, Int, Int) {
-                (-g.chars, g.styled, order(g.first.id), g.seen)
+            // Its size and color: only this one's room grows, so the top one is either the one before or this one.
+            let sub = SizeAndColor(r)
+            var s = g.subs[sub] ?? (0, r)
+            s.room += Double(n) * r.fontSize * r.fontSize
+            if order(r.id) < order(s.first.id) { s.first = r }
+            g.subs[sub] = s
+            if let t = g.topSub, t != sub, let ts = g.subs[t], (-ts.room, order(ts.first.id)) <= (-s.room, order(s.first.id)) {
+                // the top one stays
+            } else {
+                g.topSub = sub
             }
+            tally[key] = g
+            func weight(_ g: Group) -> (Int, Int, Int, Int) { (-g.chars, g.styled, order(g.first.id), g.seen) }
             if let t = top, t != key, weight(tally[t]!) < weight(g) { return }
             top = key
         }
@@ -204,11 +224,22 @@ extension ContentEditor {
         return line
     }
 
+    /// A run's size (to a tenth of a point) and color: how `plainRun` tells a bigger or colored word of a font apart.
+    struct SizeAndColor: Hashable {
+        var size: Int, color: Int
+        init(_ r: TextRun) {
+            let tenths = (r.fontSize * 10).rounded()
+            size = tenths.isFinite && abs(tenths) < 1e9 ? Int(tenths) : 0
+            color = r.color
+        }
+    }
+
     /// Lines stacked one under the other, and which alignments they still allow.
     final class PStack {
         var lines: [PLine]
         var canLeft = true, canCenter = true, canRight = true
-        var step = 0.0
+        /// From its first line's baseline to the second's: as the paragraph's own (`plainStep`), and as drawn.
+        var step = 0.0, drawnStep = 0.0
 
         init(_ first: PLine) { lines = [first] }
     }
@@ -293,7 +324,10 @@ extension ContentEditor {
             best.canLeft = fit.left
             best.canCenter = fit.center
             best.canRight = fit.right
-            if best.lines.count == 1 { best.step = plainStep(best.lines[0], line, line.baseline - best.lines[0].baseline) }
+            if best.lines.count == 1 {
+                best.drawnStep = line.baseline - best.lines[0].baseline
+                best.step = plainStep(best.lines[0], line, best.drawnStep)
+            }
             best.lines.append(line)
         }
         return stacks
@@ -320,8 +354,9 @@ extension ContentEditor {
     }
 
     /// A paragraph's own font among its runs: of those in a page font (not a stand-in, not a look an edit gave), the font
-    /// with the most text, a regular face before a bold or italic one on a tie, as its first run in content order; else
-    /// the first run that isn't a stand-in, else the first.
+    /// with the most text, a regular face before a bold or italic one on a tie; of its runs, those of the size and color
+    /// whose text takes the most room (characters times size squared: a bigger or colored word in the same font is a
+    /// stretch of its own), the first in content order; else the first run that isn't a stand-in, else the first.
     static func plainRun(_ runs: [TextRun]) -> TextRun {
         var groups: [(font: TextFont, runs: [TextRun])] = []
         for r in runs where !r.standIn && !r.styled {
@@ -337,7 +372,17 @@ extension ContentEditor {
             let styled = g.font.bold || g.font.italic ? 1 : 0
             return (-chars, styled, g.runs.map { order($0.id) }.min() ?? 0)
         }
-        if let best = groups.min(by: { weight($0) < weight($1) }) { return best.runs.min(by: before)! }
+        if let best = groups.min(by: { weight($0) < weight($1) }) {
+            var subs: [SizeAndColor: (room: Double, first: TextRun)] = [:]
+            for r in best.runs {
+                let key = SizeAndColor(r)
+                var s = subs[key] ?? (0, r)
+                s.room += Double(trimmed(r.text).utf16.count) * r.fontSize * r.fontSize
+                if before(r, s.first) { s.first = r }
+                subs[key] = s
+            }
+            return subs.values.min { (-$0.room, order($0.first.id)) < (-$1.room, order($1.first.id)) }!.first
+        }
         return runs.first { !$0.standIn && !$0.styled } ?? runs.first { !$0.standIn } ?? runs[0]
     }
 
@@ -368,7 +413,10 @@ extension ContentEditor {
         if step < 0.6 * size { return nil }
         let gap = line.box.y - last.box.bottom
         if gap > 0.65 * size { return nil }
-        if s.lines.count >= 2 && abs(step - s.step) > max(0.5, 0.1 * size) { return nil }
+        // The same step as the lines before: as the paragraph's own (bigger text widened it), or as drawn (a generator
+        // that keeps its leading whatever the size of a word on the line).
+        let tol = max(0.5, 0.1 * size)
+        if s.lines.count >= 2 && abs(step - s.step) > tol && abs(line.baseline - last.baseline - s.drawnStep) > tol { return nil }
         if line.box.x >= last.box.right || line.box.right <= last.box.x { return nil }
         let f = fits(s, line)
         return f.left || f.center || f.right ? max(0, gap) : nil
@@ -464,11 +512,11 @@ extension ContentEditor {
     }
 
     /// Codes as parts (a gap as an adjustment), with the kerning `kerning` gives each pair of neighbors.
-    static func partsOf(_ run: TextRun, _ codes: [Int], _ kerning: [CodePair: Double]? = nil, _ look: PartLook? = nil) -> [Part] {
+    static func partsOf(_ run: TextRun, _ codes: [Int], _ kerning: Kerns? = nil, _ look: PartLook? = nil) -> [Part] {
         var parts: [Part] = []
         parts.reserveCapacity(codes.count * 2)
         for (i, c) in codes.enumerated() {
-            if i > 0, let kerning, let k = kerning[CodePair(a: codes[i - 1], b: c)] { parts.append(Part(nil, k, nil, look)) }
+            if i > 0, let kerning, let k = kerning.get(codes[i - 1], c) { parts.append(Part(nil, k, nil, look)) }
             parts.append(c == TextFont.gap ? Part(nil, -run.gapEms * 1000, nil, look) : Part(c, 0, nil, look))
         }
         return parts
@@ -551,10 +599,40 @@ extension ContentEditor {
         var blocked = runs.lazy.compactMap(\.blocked).first
         // Its own look: the font most of it is in (a bold or italic word in another face of the family, or a word in
         // another family, is a stretch with a look of its own); else (an edit gave all of it another look) its first
-        // run's. Another size or color on its lines can't be rewrapped with it.
+        // run's. Another size or color on its lines is a stretch with a look of its own (as a bold word is); a smaller run
+        // set above or below its line's baseline a superscript or subscript. Text of another size set off its line
+        // otherwise, or another color that is a pattern's, can't be rewrapped with it.
         let own = plainRun(runs)
-        if blocked == nil && !translating && runs.contains(where: { !sameSizeAndColor(own, $0) }) {
-            blocked = loc("it mixes fonts, sizes or colors, and this version rewrites a paragraph in one font family only")
+        var scripts: [Int: (script: TextScript, size: Double, rise: Double)] = [:] // by run key
+        if blocked == nil && !translating {
+            let mixed = loc("it has text of another size set off its line, or painted with a pattern, that can't be rewrapped with the rest")
+            scan: for l in lines {
+                let line = lineBaseline(l)
+                for r in l.runs {
+                    if r.styled || sameSizeAndColor(own, r) || trimmed(r.text).isEmpty { continue }
+                    if r.color != own.color, let info = r.info, info.fillOp == nil {
+                        blocked = mixed
+                        break scan
+                    }
+                    if abs(r.fontSize - own.fontSize) <= max(0.3, 0.05 * own.fontSize) || line.size <= 0 || own.fontSize <= 0 { continue }
+                    let drop = r.origin.y - line.y // page space: down is positive
+                    if abs(drop) <= 0.05 * line.size { continue }
+                    var script: TextScript?
+                    if r.fontSize <= 0.85 * line.size {
+                        if drop >= 0.08 * line.size {
+                            script = .sub
+                        } else if drop <= -0.12 * line.size {
+                            script = .superscript
+                        }
+                    }
+                    guard let script else {
+                        blocked = mixed
+                        break scan
+                    }
+                    let ratio = min(max(r.fontSize / own.fontSize, 0.4), 0.85)
+                    scripts[r.key] = (script, (ratio * own.fontSize / scriptScale * 10).rounded() / 10, scriptRise(script, -drop / own.fontSize))
+                }
+            }
         }
         // A run whose font can't be used (none was read for it): its words couldn't be written in it again.
         if blocked == nil && !translating && runs.contains(where: { $0.font == nil }) { blocked = loc("its font is missing from the page") }
@@ -628,12 +706,18 @@ extension ContentEditor {
                 spaces.append(r)
             }
         }
-        // The line step as the paragraph's own: bigger text an edit gave part of it widened the steps around it.
+        // The line step as the paragraph's own: between lines of its own size when it has two, else as bigger text (an
+        // edit's, or a bigger word the page has) widened the steps around it.
         var step = 1.2 * size
         if n > 1 {
-            var sum = 0.0
-            for i in 1..<n { sum += plainStep(lines[i - 1], lines[i], lines[i].baseline - lines[i - 1].baseline) }
-            step = sum / Double(n - 1)
+            let plainSteps = (1..<n).filter { lines[$0 - 1].scale <= 1.02 && lines[$0].scale <= 1.02 }.map { lines[$0].baseline - lines[$0 - 1].baseline }
+            if !plainSteps.isEmpty {
+                step = plainSteps.reduce(0, +) / Double(plainSteps.count)
+            } else {
+                var sum = 0.0
+                for i in 1..<n { sum += plainStep(lines[i - 1], lines[i], lines[i].baseline - lines[i - 1].baseline) }
+                step = sum / Double(n - 1)
+            }
         }
 
         // What follows below: the nearest other text or picture across the paragraph's width.
@@ -651,10 +735,10 @@ extension ContentEditor {
                               align: align, lineStep: step, firstIndent: indent, blocked: blocked)
         p.below = below
         p.spaces = spaces
-        p.spans = looks ?? spansOf(own, text, at)
+        p.spans = looks ?? spansOf(own, text, at, scripts)
         if blocked == nil {
             let kerned = runs.filter { !$0.standIn && !$0.styled && $0.info != nil && $0.font === own.font }.map { $0.info! }
-            p.kerning = kerning(kerned)
+            p.kerning = Kerns.of(kerning(kerned), own.font)
         }
         p.left = left
         p.right = right
@@ -904,9 +988,12 @@ extension ContentEditor {
         return (scale, rise, color)
     }
 
-    /// Where a paragraph's new text is written: its first run in content order in its own font and look.
+    /// Where a paragraph's new text is written: its first run in content order in its own font and look, of its own size
+    /// and color (the color its lines go back to after a colored stretch).
     static func anchorRun(_ runs: [TextRun]) -> TextRun {
-        runs.filter { !$0.standIn && !$0.styled }.min(by: before) ?? runs.filter { !$0.standIn }.min(by: before) ?? runs.min(by: before)!
+        let plain = plainRun(runs)
+        return runs.filter { !$0.standIn && !$0.styled && sameSizeAndColor(plain, $0) }.min(by: before)
+            ?? runs.filter { !$0.standIn && !$0.styled }.min(by: before) ?? runs.filter { !$0.standIn }.min(by: before) ?? runs.min(by: before)!
     }
 
     /// A paragraph's new text in its own font's codes (a stretch in another face the page has, in that face's); the
@@ -1046,8 +1133,11 @@ extension ContentEditor {
             if color != nil { colored = true }
             let under = look.underline == true
             if under { underlined = true }
+            // A color the paragraph's own text is drawn in (a red word as the page has it) is set again as the page set it
+            // (its gray, CMYK or named color space), not as RGB.
+            let fill = color.flatMap { c in p.runs.first { $0.color == c && $0.info?.fillOp != nil }?.info?.fillOp }
             let plainLook = scale == 1 && r == 0 && color == nil && face == nil && page == nil && !under
-            let result: PartLook? = plainLook ? nil : PartLook(scale, color, face, look, page, r)
+            let result: PartLook? = plainLook ? nil : PartLook(scale, color, face, look, page, r, fill: fill)
             resolved[look] = .some(result)
             return result
         }
@@ -1346,7 +1436,7 @@ extension ContentEditor {
             if look?.color != color {
                 close()
                 if let c = look?.color {
-                    sb += rgbOp(c)
+                    sb += look?.fill.map { $0 + " " } ?? rgbOp(c)
                 } else {
                     sb += (info.fillOp ?? "") + " "
                 }

@@ -39,6 +39,8 @@ final class TextFont: @unchecked Sendable {
     private let lock = NSRecursiveLock()
     /// The embedded font program, when there is a readable one.
     let program: FontProgram?
+    /// Its own pair kerning, found once (`FontKerning.of`).
+    let kerningSlot = FontKerning.Slot()
     private var toUnicode: [Int: String] = [:]
     private var hasToUnicode = false
     private var names = [String?](repeating: nil, count: 256)
