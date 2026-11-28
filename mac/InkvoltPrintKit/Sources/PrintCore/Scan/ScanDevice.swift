@@ -21,12 +21,16 @@ public struct SystemScanner: Equatable, Sendable {
     /// Reached through its maker's ImageCaptureCore driver, not Apple's own (AirScan): roadmap 4.5's warning
     /// (`DriverReadiness.isMakerModule`).
     public var makerDriver: Bool
+    /// A USB scanner's vendor and product ids ("04B8:013C", ICDevice's `usbVendorID` and `usbProductID`): how a scanner that
+    /// needed its driver is known again once it has one (`NeedsDriver.scannerListed`). Nil when not said.
+    public var usbId: String?
 
-    public init(id: String, name: String, usb: Bool, makerDriver: Bool = false) {
+    public init(id: String, name: String, usb: Bool, makerDriver: Bool = false, usbId: String? = nil) {
         self.id = id
         self.name = name
         self.usb = usb
         self.makerDriver = makerDriver
+        self.usbId = usbId
     }
 }
 
