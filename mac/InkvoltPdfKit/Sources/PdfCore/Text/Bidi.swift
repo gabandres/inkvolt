@@ -159,7 +159,9 @@ enum Bidi {
         }
         if units.isEmpty { return text }
         let maxLevel = Int(units.map(\.level).max()!)
-        let minOdd = units.filter { $0.level % 2 == 1 }.map { Int($0.level) }.min() ?? Int.max
+        // Typed in two steps: CI's older compiler reads the one-line form's `??` as leaving an Int?.
+        let oddLevels: [Int] = units.filter { $0.level % 2 == 1 }.map { Int($0.level) }
+        let minOdd: Int = oddLevels.min() ?? Int.max
         var level = maxLevel
         while level >= minOdd {
             var i = 0
