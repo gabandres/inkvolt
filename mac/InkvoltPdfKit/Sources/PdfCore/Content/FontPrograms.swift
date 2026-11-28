@@ -238,6 +238,220 @@ final class CffProgram: FontProgram, @unchecked Sendable {
     func hasName(_ name: String) -> Bool { !isCid && names.contains(name) }
     func hasCid(_ cid: Int) -> Bool { isCid ? cids.contains(cid) : cid > 0 && cid < numGlyphs }
 
+    // What the advance widths are read from (CFF spec, Adobe TN 5176; Type 2 charstrings, TN 5177).
+    private var b: [UInt8] = []
+    private var charStrings: [(offset: Int, length: Int)] = []
+    private var globalSubrs: [(offset: Int, length: Int)] = []
+    private var gidOfName: [String: Int] = [:]
+    private var gidOfCid: [Int: Int] = [:]
+    /// The Private DICTs (one, or one per FDArray font of a CID-keyed program) and, per glyph, which (FDSelect).
+    private var privates: [PrivateDict] = []
+    private var fdOfGlyph: [UInt8]?
+    /// Each glyph's advance once read (nan: can't be told), made with the program; read and written under `gate`.
+    private var advances: [Double?] = []
+    private let gate = NSLock()
+
+    /// A Private DICT's widths and local subroutines, with the scale of its font's FontMatrix (to thousandths of an em).
+    fileprivate struct PrivateDict {
+        let defaultWidth: Double, nominalWidth: Double
+        let subrs: [(offset: Int, length: Int)]
+        let scale: Double
+    }
+
+    /// A name-keyed program's advance for a glyph name, in thousandths of an em; nil when it isn't there or can't be read.
+    func advance(_ name: String) -> Double? { !isCid ? gidOfName[name].flatMap(advanceOfGlyph) : nil }
+
+    /// A CID-keyed program's advance for a CID (a name-keyed one's for a glyph index, as a CID font uses it), in
+    /// thousandths of an em.
+    func advanceOfCid(_ cid: Int) -> Double? { isCid ? gidOfCid[cid].flatMap(advanceOfGlyph) : advanceOfGlyph(cid) }
+
+    /// The advance of a glyph (by index) its charstring gives, in thousandths of an em; nil when it can't be told.
+    func advanceOfGlyph(_ gid: Int) -> Double? {
+        guard gid >= 0 && gid < charStrings.count && gid < advances.count && !privates.isEmpty else { return nil }
+        gate.lock()
+        defer { gate.unlock() }
+        if let known = advances[gid] { return known.isNaN ? nil : known }
+        let fd = fdOfGlyph.map { gid < $0.count ? Int($0[gid]) : -1 } ?? 0
+        var width: Double?
+        if fd >= 0 && fd < privates.count, let w = WidthRun.read(b, charStrings[gid], globalSubrs, privates[fd]) {
+            width = w * privates[fd].scale
+        }
+        let v = width.flatMap { $0.isFinite ? $0 : nil } ?? .nan
+        advances[gid] = v
+        return v.isNaN ? nil : v
+    }
+
+    /// A Type 2 charstring's advance (TN 5177, 3.1): the first stack-clearing operator (a hint, a move or endchar) finds
+    /// an odd value more than it takes when a width leads, the nominal width plus that value; else the default width.
+    /// Subroutines called before it are followed. Bounded (depth, steps, stack): a program built to loop gives no width.
+    private struct WidthRun {
+        static let maxDepth = 10, maxSteps = 2000, maxStack = 48
+        let b: [UInt8]
+        let globals: [(offset: Int, length: Int)]
+        let priv: PrivateDict
+        var stack: [Double] = []
+        var steps = 0
+        var width: Double?
+
+        static func read(_ b: [UInt8], _ charString: (offset: Int, length: Int), _ globals: [(offset: Int, length: Int)], _ priv: PrivateDict) -> Double? {
+            var run = WidthRun(b: b, globals: globals, priv: priv)
+            return run.run(charString.offset, charString.length, 0) == 1 ? run.width : nil
+        }
+
+        static func bias(_ count: Int) -> Int { count < 1240 ? 107 : count < 33900 ? 1131 : 32768 }
+
+        /// 1: the width is known; 0: a subroutine returned; -1: it can't be told.
+        mutating func run(_ start: Int, _ length: Int, _ depth: Int) -> Int {
+            if depth > Self.maxDepth || start < 0 || length < 0 || start > b.count - length { return -1 }
+            let end = start + length
+            var p = start
+            while p < end {
+                steps += 1
+                if steps > Self.maxSteps { return -1 }
+                let v = Int(b[p])
+                var number: Double?
+                if v >= 32 && v <= 246 {
+                    number = Double(v - 139)
+                    p += 1
+                } else if v >= 247 && v <= 250 && p + 1 < end {
+                    number = Double((v - 247) * 256 + Int(b[p + 1]) + 108)
+                    p += 2
+                } else if v >= 251 && v <= 254 && p + 1 < end {
+                    number = Double(-(v - 251) * 256 - Int(b[p + 1]) - 108)
+                    p += 2
+                } else if v == 28 && p + 2 < end {
+                    number = Double(Int16(bitPattern: UInt16(b[p + 1]) << 8 | UInt16(b[p + 2])))
+                    p += 3
+                } else if v == 255 && p + 4 < end {
+                    let raw = UInt32(b[p + 1]) << 24 | UInt32(b[p + 2]) << 16 | UInt32(b[p + 3]) << 8 | UInt32(b[p + 4])
+                    number = Double(Int32(bitPattern: raw)) / 65536
+                    p += 5
+                }
+                if let n = number {
+                    if stack.count == Self.maxStack { return -1 }
+                    stack.append(n)
+                    continue
+                }
+                p += 1
+                switch v {
+                case 10, 29: // callsubr, callgsubr
+                    let subrs = v == 10 ? priv.subrs : globals
+                    guard let last = stack.popLast() else { return -1 }
+                    let index = last + Double(Self.bias(subrs.count))
+                    guard index >= 0 && index < Double(subrs.count) else { return -1 }
+                    let called = run(subrs[Int(index)].offset, subrs[Int(index)].length, depth + 1)
+                    if called != 0 { return called }
+                case 11: // return
+                    return 0
+                case 1, 3, 18, 23, 19, 20: // hstem, vstem, hstemhm, vstemhm, hintmask, cntrmask
+                    return found(stack.count % 2 == 1)
+                case 21: // rmoveto
+                    return found(stack.count > 2)
+                case 4, 22: // vmoveto, hmoveto
+                    return found(stack.count > 1)
+                case 14: // endchar (four more operands: an accented seac)
+                    return found(stack.count == 1 || stack.count == 5)
+                default:
+                    return -1 // drawing before a move, or an operator no width comes before
+                }
+            }
+            return 0
+        }
+
+        mutating func found(_ leads: Bool) -> Int {
+            width = leads ? priv.nominalWidth + stack[0] : priv.defaultWidth
+            return 1
+        }
+    }
+
+    /// A DICT offset or size as an index into `b`, or -1 when it can't be one.
+    private static func at(_ dict: [Int: [Double]], _ op: Int, _ k: Int, _ b: [UInt8]) -> Int {
+        guard let v = dict[op], v.count > k, v[k] >= 0, v[k] <= Double(b.count) else { return -1 }
+        return Int(v[k])
+    }
+
+    /// The Private DICT a font DICT names, with the scale its FontMatrix (else `scale`) gives.
+    private static func readPrivate(_ b: [UInt8], _ font: [Int: [Double]], _ scale: Double) throws -> PrivateDict {
+        let size = at(font, 18, 0, b), offset = at(font, 18, 1, b)
+        if size < 0 || offset < 0 || offset > b.count - size { return PrivateDict(defaultWidth: 0, nominalWidth: 0, subrs: [], scale: scale) }
+        let priv = try dict(FontBytes(b), offset, offset + size)
+        func number(_ op: Int) -> Double { priv[op].flatMap { $0.first }.flatMap { $0.isFinite ? $0 : nil } ?? 0 }
+        var subrs: [(offset: Int, length: Int)] = []
+        if let s = priv[19]?.first, s >= 0, s <= Double(b.count - offset) {
+            var p = offset + Int(s)
+            subrs = try index(FontBytes(b), &p)
+        }
+        return PrivateDict(defaultWidth: number(20), nominalWidth: number(21), subrs: subrs, scale: scale)
+    }
+
+    /// A FontMatrix's horizontal scale (the default is 0.001); nil without one or a bad one.
+    private static func matrixScale(_ dict: [Int: [Double]]) -> Double? {
+        guard let m = dict[1207]?.first, m.isFinite, abs(m) > 1e-9, abs(m) < 1e3 else { return nil }
+        return m
+    }
+
+    /// A CID-keyed program's glyph scale from its Top DICT's FontMatrix and its font DICT's (each 0.001 when missing), to
+    /// thousandths of an em, as FreeType combines them: multiplied, except that when both scale down (an em of units each,
+    /// [0.001 …] in both is common) the em counts once, so the smaller one is the scale.
+    static func combinedScale(_ top: Double?, _ font: Double?) -> Double {
+        let t = top ?? 0.001, f = font ?? 0.001
+        return 1000 * (abs(t) < 1 && abs(f) < 1 ? t * f / max(abs(t), abs(f)) : t * f)
+    }
+
+    /// The Private DICTs widths come from: the Top DICT's, or a CID-keyed program's one per FDArray font with FDSelect
+    /// saying which glyph uses which. Anything that can't be read leaves no Private DICT, so no widths (the glyphs are
+    /// still known).
+    private func readPrivates(_ top: [Int: [Double]], _ cid: Bool) {
+        do {
+            let topScale = Self.matrixScale(top)
+            if !cid {
+                privates = [try Self.readPrivate(b, top, 1000 * (topScale ?? 0.001))]
+                return
+            }
+            var fdArray = Self.at(top, 1236, 0, b)
+            let fdSelect = Self.at(top, 1237, 0, b)
+            if fdArray < 0 || fdSelect < 0 { return }
+            let fonts = try Self.index(FontBytes(b), &fdArray)
+            if fonts.isEmpty || fonts.count > 256 { return }
+            privates = try fonts.map { f in
+                let d = try Self.dict(FontBytes(b), f.offset, f.offset + f.length)
+                return try Self.readPrivate(b, d, Self.combinedScale(topScale, Self.matrixScale(d)))
+            }
+            let n = charStrings.count
+            var select = [UInt8](repeating: 0, count: n)
+            let bytes = FontBytes(b)
+            var q = fdSelect
+            let format = try bytes.u8(q)
+            q += 1
+            switch format {
+            case 0:
+                if q > b.count - n { throw FontProgramDamaged() }
+                select = Array(b[q..<q + n])
+            case 3:
+                let ranges = try bytes.u16(q)
+                q += 2
+                // Ranges in order, each up to the next one's first glyph; overlapping ones set each glyph once at most.
+                var r = 0, done = 0
+                while r < ranges && done < n {
+                    let first = try bytes.u16(q), fd = try bytes.u8(q + 2), next = try bytes.u16(q + 3)
+                    var g = max(first, done)
+                    while g < next && g < n {
+                        select[g] = UInt8(fd)
+                        g += 1
+                    }
+                    done = max(done, min(next, n))
+                    r += 1
+                    q += 3
+                }
+            default:
+                throw FontProgramDamaged()
+            }
+            fdOfGlyph = select
+        } catch {
+            privates = []
+        }
+    }
+
     static func read(_ data: [UInt8]) -> CffProgram? { try? parse(data) }
 
     /// A Type 2 charstring that ends before drawing: at most a width, then endchar (with four more operands it is an accented seac).
@@ -269,6 +483,8 @@ final class CffProgram: FontProgram, @unchecked Sendable {
         _ = try index(b, &p) // names
         let tops = try index(b, &p)
         let strings = try index(b, &p)
+        // A program cut short after its strings: its glyphs are still known, a subroutine call gives no width.
+        let globalSubrs = (try? index(b, &p)) ?? []
         guard let first = tops.first else { return nil }
         let top = try dict(b, first.offset, first.offset + first.length)
         let cid = top[1230] != nil
@@ -279,6 +495,11 @@ final class CffProgram: FontProgram, @unchecked Sendable {
         let font = CffProgram()
         font.numGlyphs = n
         font.isCid = cid
+        font.b = data
+        font.charStrings = charStrings
+        font.globalSubrs = globalSubrs
+        font.advances = [Double?](repeating: nil, count: n)
+        font.readPrivates(top, cid)
         let charset = top[15]?.first.map { Int($0) } ?? 0
         var sids = [Int](repeating: 0, count: n)
         if charset > 2 {
@@ -314,9 +535,11 @@ final class CffProgram: FontProgram, @unchecked Sendable {
         for gid in stride(from: 1, to: n, by: 1) {
             if cid {
                 font.cids.insert(sids[gid])
+                if font.gidOfCid[sids[gid]] == nil { font.gidOfCid[sids[gid]] = gid }
             } else if let name = sid(sids[gid], data, strings) {
                 font.names.insert(name)
                 font.glyphNames[gid] = name
+                if font.gidOfName[name] == nil { font.gidOfName[name] = gid }
             }
             if blankCharString(data, charStrings[gid].offset, charStrings[gid].length) { font.blank.insert(cid ? sids[gid] : gid) }
         }
@@ -376,10 +599,29 @@ final class CffProgram: FontProgram, @unchecked Sendable {
                 operands.append(Double(Int32(truncatingIfNeeded: try b.u32(p + 1))))
                 p += 5
             } else if v == 30 {
-                p += 1 // a real number: nibbles until 0xf
-                while p < end, let x = try? b.u8(p), x & 0x0F != 0x0F && x & 0xF0 != 0xF0 { p += 1 }
+                // A real number: nibbles (0-9, a ".", b "E", c "E-", e "-") until an f, at most 64 of them.
                 p += 1
-                operands.append(0)
+                var text = ""
+                var done = false
+                while p < end && !done && text.count < 64 {
+                    let x = try b.u8(p)
+                    for nibble in [x >> 4, x & 0x0F] {
+                        if nibble == 0x0F {
+                            done = true
+                            break
+                        }
+                        switch nibble {
+                        case 0..<10: text += String(nibble)
+                        case 0x0A: text += "."
+                        case 0x0B: text += "E"
+                        case 0x0C: text += "E-"
+                        case 0x0E: text += "-"
+                        default: break
+                        }
+                    }
+                    p += 1
+                }
+                operands.append(Double(text) ?? 0)
             } else if (32...246).contains(v) {
                 operands.append(Double(v - 139))
                 p += 1
@@ -425,6 +667,69 @@ final class Type1Program: FontProgram, @unchecked Sendable {
 
     func hasName(_ name: String) -> Bool { names.contains(name) }
 
+    private var plain: [UInt8] = []
+    private var charStrings: [String: (offset: Int, length: Int)] = [:]
+    private var advances: [String: Double?] = [:]
+    private let gate = NSLock()
+    private var lenIV = 4
+    private var scale = 1.0
+
+    /// A glyph's advance, in thousandths of an em: the width its charstring's hsbw or sbw sets (Type 1 spec, 6.4), scaled
+    /// by the FontMatrix. Nil when the glyph isn't there or its charstring doesn't start with one.
+    func advance(_ name: String) -> Double? {
+        gate.lock()
+        defer { gate.unlock() }
+        if let known = advances[name] { return known }
+        var width: Double?
+        if let cs = charStrings[name], cs.length > 0 {
+            let bytes = Array(plain[cs.offset..<cs.offset + cs.length])
+            width = Self.width(lenIV < 0 ? bytes : Self.decrypt(bytes, 4330, lenIV)) // lenIV -1: not encrypted
+        }
+        if let w = width { width = (w * scale).isFinite ? w * scale : nil }
+        if advances.count < 65536 { advances[name] = width }
+        return width
+    }
+
+    /// The wx of the hsbw (sbx wx) or sbw (sbx sby wx wy) a charstring starts with; numbers may be divided (div) first.
+    private static func width(_ cs: [UInt8]) -> Double? {
+        var stack: [Double] = []
+        var p = 0
+        while p < cs.count {
+            let v = Int(cs[p])
+            var number: Double?
+            if v >= 32 && v <= 246 {
+                number = Double(v - 139)
+                p += 1
+            } else if v >= 247 && v <= 250 && p + 1 < cs.count {
+                number = Double((v - 247) * 256 + Int(cs[p + 1]) + 108)
+                p += 2
+            } else if v >= 251 && v <= 254 && p + 1 < cs.count {
+                number = Double(-(v - 251) * 256 - Int(cs[p + 1]) - 108)
+                p += 2
+            } else if v == 255 && p + 4 < cs.count {
+                number = Double(Int32(bitPattern: UInt32(cs[p + 1]) << 24 | UInt32(cs[p + 2]) << 16 | UInt32(cs[p + 3]) << 8 | UInt32(cs[p + 4])))
+                p += 5
+            }
+            if let n = number {
+                if stack.count == 24 { return nil }
+                stack.append(n)
+                continue
+            }
+            if v == 13 { return stack.count == 2 ? stack[1] : nil } // hsbw
+            if v != 12 || p + 1 >= cs.count { return nil }
+            let escaped = cs[p + 1]
+            p += 2
+            if escaped == 7 { return stack.count == 4 ? stack[2] : nil } // sbw
+            if escaped != 12 || stack.count < 2 || stack[stack.count - 1] == 0 { return nil } // div
+            stack[stack.count - 2] /= stack[stack.count - 1]
+            stack.removeLast()
+        }
+        return nil
+    }
+
+    private static let fontMatrix = try! NSRegularExpression(pattern: #"/FontMatrix\s*[\[{]\s*([-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)"#)
+    private static let lenIVEntry = try! NSRegularExpression(pattern: #"/lenIV\s+(-?\d{1,3})\b"#)
+
     static func read(_ data: [UInt8]) -> Type1Program? {
         var b = data
         // PFB segments (0x80 0x01 / 0x80 0x02) or a plain cleartext + binary eexec part.
@@ -446,7 +751,20 @@ final class Type1Program: FontProgram, @unchecked Sendable {
             }
             encrypted = bytes
         }
-        font.readCharStrings(decrypt(encrypted, 55665, 4))
+        let plain = decrypt(encrypted, 55665, 4)
+        font.readCharStrings(plain)
+        font.plain = plain
+        // The FontMatrix (cleartext) scales the widths; lenIV (private part) is how many random bytes lead a charstring.
+        let clear = latin1String(b[..<eexec])
+        if let m = fontMatrix.firstMatch(in: clear, range: NSRange(location: 0, length: (clear as NSString).length)),
+           let a = Double((clear as NSString).substring(with: m.range(at: 1))), abs(a) > 1e-9, abs(a) < 1e3 {
+            font.scale = a * 1000
+        }
+        let head = latin1String(plain.prefix(1 << 16))
+        if let m = lenIVEntry.firstMatch(in: head, range: NSRange(location: 0, length: (head as NSString).length)),
+           let n = Int((head as NSString).substring(with: m.range(at: 1))) {
+            font.lenIV = n
+        }
         return font.names.isEmpty ? nil : font
     }
 
@@ -518,6 +836,11 @@ final class Type1Program: FontProgram, @unchecked Sendable {
             while p < plain.count && isSpace(plain[p]) { p += 1 }
             while p < plain.count && !isSpace(plain[p]) { p += 1 } // RD or -|
             p += 1 // the single space before the binary
+            if len > plain.count - p {
+                names.insert(name) // cut short: the glyph is named, its charstring isn't all there
+                break
+            }
+            if charStrings[name] == nil { charStrings[name] = (p, len) }
             p += len
             while p < plain.count && isSpace(plain[p]) { p += 1 }
             while p < plain.count && !isSpace(plain[p]) { p += 1 } // ND or |-

@@ -105,7 +105,8 @@ restarted mid-run: every file once, none twice; also through the Store package's
   (`BatchRunner.Unpacked`, counted a chunk at a time before admission, 8 bytes a byte), since a 200 KB file can unpack a
   200 MB stream and take 1.6 GB in Reduce File Size; such a file runs alone.
 - **Not checked:** a share on another PC over a real network; a run as a scheduled task.
-- **Mac:** pricing a file by what its streams unpack to isn't ported.
+- **Mac:** done (2026-11-27), the same pricing (`BatchRunner.unpackedSize`, `pictureBytes`); a stream counts only after a
+  zlib header (`mac/docs/PLAN.md`, "Windows' additions of 2026-11-19 and 20").
 
 ### 1.3 Accessibility checker
 Done, Windows and Mac. `AccessibilityCheck`: Matterhorn Protocol 1.1's machine-checkable conditions (83 of 87) plus
@@ -113,7 +114,7 @@ PDF/UA's basics, each failure with its number, page and element; the human condi
 Batch's Check Accessibility. Widths (31-016) checked against TrueType, CFF and Type 1 programs (`CffProgram`,
 `Type1Program`). Not checked, as veraPDF doesn't either: 09-007, 09-008 (Ruby, Warichu), 28-018, 31-023. Against
 veraPDF: `pdf/tools/a11y-corpus` (latest results in its README).
-- **Mac:** the CFF and Type 1 widths aren't ported.
+- **Mac:** done (2026-11-27), the CFF and Type 1 widths too (`CffProgram`, `Type1Program`, `TextFont.programWidth`).
 
 ### 1.4 Comments and form data in and out
 Done, Windows and Mac. `CommentFiles` (XFDF, FDF, CSV; import merges by /NM and lets in only an allow-list, cleaned),
@@ -132,7 +133,8 @@ the redacted text anywhere in the file (every earlier version too), and boxes dr
 space between them, each box rounded to steps of twice the line's height; `/PdLaidOut` records the boxes it laid out.
 - **Limit, by MuPDF's nature:** a moved word keeps the anti-aliased shading of where it was (under a pixel, 0.24 pt at
   300 dpi): MuPDF renders on the pixel grid, so a word can't be drawn again at a sub-pixel offset.
-- **Mac:** `RedactionLines` and `GlyphSpacing` aren't ported.
+- **Mac:** done (2026-11-27), `RedactionLines` (through `Redaction.redact`) and the boxes in pictures (`GlyphSpacing`)
+  too; differences: `mac/docs/PLAN.md`, "Windows' additions of 2026-11-19 and 20".
 
 ### 1.6 Store update check
 Done. `UpdateCheck` (Core, decisions tested with a fake Store) through `Windows.Services.Store`. Mac: Sparkle 2.
@@ -206,7 +208,7 @@ fonts).
   wrong text is worse than none.
 - The Kind list makes nothing a table or a list from a paragraph (their cells and entries aren't known).
 - **Not checked:** Acrobat's and PAC's view of the output (neither is installed here).
-- **Mac:** row spans in tables without lines (2026-11-20) aren't ported.
+- **Mac:** done (2026-11-27), row spans in tables without lines too (`AutoTag.unruledRowSpans`).
 
 ### 2.5 What's in this PDF (differentiator)
 Done, Windows and Mac. `DocumentInventory`: one report of what a file carries and does when opened, each item saying
@@ -247,7 +249,8 @@ through a real socket to a stand-in, `TranslationCorpusTests` and `TranslationPd
   identifier changed ("SP 800-63A" as "DE 800-63A"), words of another script slipped in (asked again, then flagged).
 - **Not checked:** another model or a cloud endpoint; a model's refusal or an answer to the text instead of its
   translation can't be told from a translation; a screen reader or Acrobat on a copy; long runs over sleep and Wi-Fi drops.
-- **Mac:** done (2026-11-10) as Windows was then; the looks and right-to-left work of 2026-11-19 and 11-20 isn't ported.
+- **Mac:** done (2026-11-10) as Windows was then; the looks and right-to-left work of 2026-11-19 and 11-20 isn't ported
+  (its Windows commits, in order: `mac/docs/PLAN.md`, "Windows' additions of 2026-11-19 and 20").
   Differences: `mac/docs/PLAN.md`, "Translate side by side". Not checked on the Mac: a real model.
 
 ### 3.2 Export to PowerPoint and HTML

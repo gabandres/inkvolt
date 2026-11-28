@@ -219,7 +219,7 @@ struct RedactionSuggestionsTests {
 
         // Skip Acme on page 2: the rest goes, is read back, checked; the skipped one stays and doesn't fail the run.
         func skip(_ h: RedactionMatch) -> Bool { h.page == 1 && h.text.hasPrefix("Acme") }
-        let run = PatternRedaction(file: "contract.pdf", patterns: options, found: found, accepted: found.hits.filter { !skip($0) },
+        var run = PatternRedaction(file: "contract.pdf", patterns: options, found: found, accepted: found.hits.filter { !skip($0) },
                                    skipped: found.hits.filter(skip), mode: .reviewed, ocr: nil)
         let redacted = try run.redact(pdf, nil).data
         let outcome = try run.verify(redacted, nil, pdf)

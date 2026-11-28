@@ -46,7 +46,7 @@ final class PatternRedactionTests {
     private static func run(_ data: [UInt8], _ mode: PatternRedactionMode, _ ocr: (any TextRecognizer)? = nil, _ options: RedactionPatternOptions = ssn,
                             accept: (RedactionMatch) -> Bool = { _ in true }) throws -> (outcome: PatternRedactionOutcome, result: [UInt8]) {
         let found = try find(data, options, ocr)
-        let run = PatternRedaction(file: "file.pdf", patterns: options, found: found, accepted: found.hits.filter(accept),
+        var run = PatternRedaction(file: "file.pdf", patterns: options, found: found, accepted: found.hits.filter(accept),
                                    skipped: found.hits.filter { !accept($0) }, mode: mode, ocr: ocr)
         let result = try run.redact(data, nil).data
         return (try run.verify(result, nil, data), result)

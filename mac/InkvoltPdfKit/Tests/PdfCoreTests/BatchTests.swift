@@ -401,6 +401,111 @@ final class BatchTests {
         #expect(BatchRunner.weight(1000, (14400, 14400), images) == (32 << 20) + 4 * 64_000_000)
     }
 
+    /// A one-page PDF with an unused Flate stream of `zeros` zeros, its "stream" keyword starting at `keywordAt` when given
+    /// (padding goes in before it). Written as bytes: the packed data isn't text.
+    private static func unpacking(_ zeros: Int, keywordAt: Int? = nil) -> [UInt8] {
+        let packed = Deflate.zlib([UInt8](repeating: 0, count: zeros))
+        func build(_ pad: Int) -> [UInt8] {
+            let objects: [[UInt8]] = [
+                Array("<< /Type /Catalog /Pages 2 0 R >>".utf8),
+                Array("<< /Type /Pages /Kids [3 0 R] /Count 1 >>".utf8),
+                Array("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << >> >>".utf8),
+                Array(Core2Pdf.stream("0 0 1 rg 72 72 100 100 re f").utf8),
+                Array("(\(String(repeating: "x", count: max(0, pad))))".utf8),
+                Array("<< /Filter /FlateDecode /Length \(packed.count) >>\nstream\n".utf8) + packed + Array("\nendstream".utf8),
+            ]
+            var out = Array("%PDF-1.7\n".utf8)
+            var offsets: [Int] = []
+            for (n, o) in objects.enumerated() {
+                offsets.append(out.count)
+                out += Array("\(n + 1) 0 obj\n".utf8) + o + Array("\nendobj\n".utf8)
+            }
+            let xref = out.count
+            var table = "xref\n0 \(objects.count + 1)\n0000000000 65535 f \n"
+            for o in offsets { table += String(format: "%010d 00000 n \n", o) }
+            table += "trailer\n<< /Size \(objects.count + 1) /Root 1 0 R >>\nstartxref\n\(xref)\n%%EOF\n"
+            return out + Array(table.utf8)
+        }
+        let data = build(0)
+        guard let at = keywordAt else { return data }
+        let marker = Array(">>\nstream\n".utf8)
+        let now = (0...(data.count - marker.count)).last { Array(data[$0..<$0 + marker.count]) == marker }! + 3
+        return build(at - now)
+    }
+
+    @Test func aFileIsPricedByWhatItsStreamsUnpackTo() async throws {
+        // Roadmap 1.2's check: a 200 KB file whose stream unpacks to 200 MB took 1.6 GB in Reduce File Size, priced by its
+        // size on disk. Here 64 MB of zeros in a 64 KB stream.
+        let bomb = try put("in/bomb.pdf", Self.unpacking(64 << 20))
+        let size = try FileManager.default.attributesOfItem(atPath: bomb)[.size] as! Int
+        #expect(size < 100_000, "\(size)")
+        let unpacked = try BatchRunner.unpackedSize(bomb, cap: .max)
+        #expect(unpacked >= 64 << 20 && unpacked <= (64 << 20) + 100, "\(unpacked)") // the bomb and the page's content
+        var plan = plan(.optimize(OptimizeOptions()))
+        plan.memoryBudget = 256 << 20
+        plan.maxParallel = 4
+        #expect(BatchRunner.weight(size, nil, plan) == 32 << 20) // by its size alone: seven more beside it
+        let weight = BatchRunner.weight(size, nil, plan, unpacked: unpacked)
+        #expect(weight == 8 * unpacked)
+        // Priced so, it runs alone in a 256 MB budget: nothing else enters while it is in, and it waits for the others.
+        let gate = WeightedGate(plan.memoryBudget)
+        #expect(gate.tryEnter(weight))
+        #expect(!gate.tryEnter(32 << 20))
+        gate.release(weight)
+        #expect(gate.tryEnter(32 << 20))
+        #expect(!gate.tryEnter(weight))
+
+        // Counting stops past the cap (such a file runs alone anyway): a 64 KB chunk past it at most.
+        let capped = try BatchRunner.unpackedSize(bomb, cap: 1 << 20)
+        #expect(capped >= (1 << 20) + 1 && capped <= (1 << 20) + (64 << 10))
+        // A keyword split across the 1 MB blocks the file is read in is still found, wherever it falls.
+        for at in (1 << 20) - 6...(1 << 20) {
+            let split = try BatchRunner.unpackedSize(try put("in/split\(at).pdf", Self.unpacking(1 << 20, keywordAt: at)), cap: .max)
+            #expect(split >= 1 << 20 && split <= (1 << 20) + 100, "\(at): \(split)")
+        }
+        // An ordinary file: what its content unpacks to, small; a file that isn't a PDF counts nothing.
+        let plain = try BatchRunner.unpackedSize(try put("in/plain.pdf", TestPdf.make(3)), cap: .max)
+        #expect(plain >= 0 && plain <= 1 << 20)
+        let noise = (0..<200_000).map { UInt8(truncatingIfNeeded: ($0 * 7919) >> 3) }
+        #expect(try BatchRunner.unpackedSize(try put("in/noise.pdf", noise), cap: .max) == 0)
+
+        // The batch itself: priced so, every file is done.
+        let summary = try await Self.run([bomb, try put("in/a.pdf", TestPdf.make(2)), try put("in/b.pdf", TestPdf.make(1))], plan)
+        #expect(summary.done == 3)
+    }
+
+    @Test func aPictureIsPricedByWhatItDecodesToWithoutInflatingIt() throws {
+        // A 2000 x 1500 RGB picture whose data isn't Flate (as a JPEG's isn't): 9 MB once decoded, though nothing inflates.
+        // (ASCII noise: the Mac's test PDFs are written as UTF-8 text.)
+        let noise = String((0..<50_000).map { Character(UnicodeScalar(UInt8(33 + (($0 * 7919) >> 3) % 90))) })
+        let pdf = Core2Pdf.build([
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /XObject << /Im 4 0 R >> >> >>",
+            Core2Pdf.stream(noise, "/Type /XObject /Subtype /Image /Width 2000 /Height 1500 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode"),
+        ])
+        #expect(try BatchRunner.unpackedSize(try put("in/picture.pdf", pdf), cap: .max) == 9_000_000)
+        // What a picture's dictionary says: gray, CMYK, a mask, an indexed one; an indirect width can't be read there.
+        #expect(BatchRunner.pictureBytes("4 0 obj << /Subtype /Image /Width 100 /Height 50 /ColorSpace /DeviceGray /BitsPerComponent 8 /Length 9 >>") == 100 * 50)
+        #expect(BatchRunner.pictureBytes("4 0 obj << /Subtype/Image /Width 100 /Height 50 /ColorSpace /DeviceCMYK /BitsPerComponent 8 >>") == 100 * 50 * 4)
+        #expect(BatchRunner.pictureBytes("<< /Subtype /Image /ImageMask true /Width 100 /Height 50 >>") == (100 * 50 + 7) / 8)
+        #expect(BatchRunner.pictureBytes("<< /Subtype /Image /Width 100 /Height 50 /ColorSpace [/Indexed /DeviceRGB 255 5 0 R] /BitsPerComponent 8 >>") == 100 * 50)
+        #expect(BatchRunner.pictureBytes("<< /Subtype /Image /Width 7 0 R /Height 50 >>") == nil)
+        #expect(BatchRunner.pictureBytes("<< /Type /XObject /Subtype /Form /BBox [0 0 1 1] >>") == nil)
+        // Huge numbers stay within a stream's limit.
+        #expect(BatchRunner.pictureBytes("<< /Subtype /Image /Width 999999999 /Height 999999999 /BitsPerComponent 16 >>") == BatchRunner.maxStreamBytes)
+    }
+
+    @Test func countingWhatAFileUnpacksToStopsWhenTheBatchIsCancelled() async throws {
+        let bomb = try put("in/bomb.pdf", Self.unpacking(64 << 20))
+        let token = CancelToken()
+        token.cancel()
+        #expect(throws: CancellationError.self) { try BatchRunner.unpackedSize(bomb, cap: .max, cancel: token) }
+        // A batch cancelled while files wait: it ends, every file not done is said to be cancelled.
+        let summary = try await Self.run([bomb, try put("in/a.pdf", TestPdf.make(1))], plan(.rotate(90)), cancel: token)
+        #expect(summary.items.allSatisfy { $0.state == .cancelled })
+    }
+
     @Test func aFileThatAppearsMeanwhileIsNeverOverwritten() throws {
         let names = OutputNames(overwrite: false, inputs: [])
         let path = try names.place(out, "a.pdf") { temp in

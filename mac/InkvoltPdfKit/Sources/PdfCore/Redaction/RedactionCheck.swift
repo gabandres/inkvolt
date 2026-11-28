@@ -316,6 +316,8 @@ final class PageScan {
     var drawn: [(box: RectD, order: Int, picture: Bool)] = []
     var lightBoxes: [RectD] = []
     var marks: [[RectD]] = []
+    /// Boxes Inkvolt PDF's redaction drew into the page's picture with their lines laid out again (`Redaction.laidOutBoxes`).
+    var laidOut: [RectD] = []
 
     /// Something other than text was drawn under the cover before it: a picture reaching into it, or a path mostly inside
     /// it (not a rule or a frame that just crosses it).
@@ -452,6 +454,7 @@ final class ContentWalker {
                     scan.pictures.append((box, entry))
                     order += 1
                     scan.drawn.append((box, order, true))
+                    scan.laidOut += Redaction.laidOutBoxes(entry)
                 } else if sub == "Form" && depth >= Self.maxDepth {
                     cut = true // nested deeper than walked
                 } else if sub == "Form" && entry.isRef && active.insert(entry.identity).inserted {
@@ -521,6 +524,8 @@ extension RedactionCheck {
         var texts: [PageText] = []
         /// Per page: characters already reported.
         var reported: [Set<Int>] = []
+        /// Per page, boxes found in its pictures (`boxesInPictures`), reported once every page is read.
+        var pictureBoxes: [[RectD]] = []
         /// Values found somewhere.
         var hits = Set<Int>()
         var hiddenLayers = 0
@@ -560,6 +565,7 @@ extension RedactionCheck {
             let revisions = RedactionCheck.revisions(data)
             total = pages * 2 + min(revisions.count, RedactionCheck.maxRevisions)
             reported = Array(repeating: [], count: pages)
+            pictureBoxes = Array(repeating: [], count: pages)
 
             // The pages' text first (the engine reads text in a context of its own; Windows reads it on another thread
             // while it walks the pages).
@@ -580,6 +586,9 @@ extension RedactionCheck {
                     step()
                 }
                 try covers(engine, scans)
+                for p in 0..<pages {
+                    for box in pictureBoxes[p] { besideBox(p, box) }
+                }
                 for p in 0..<pages { hiddenRuns(p, hidden[p], scans[p]) }
                 if let areas = options.areas, !areas.isEmpty { try self.areas(engine, scans, areas) }
                 hiddenContent(doc)
@@ -732,6 +741,7 @@ extension RedactionCheck {
                 let pixels = max(1, g.width * g.height)
                 let scale = min(RedactionCheck.charScale, (8_000_000 / pixels).squareRoot())
                 guard let img = try skipped.unlessRefused({ try engine.render(p, scale: scale, cancel: cancel) }) else { return [] }
+                pictureBoxes[p] = boxesInPictures(p, scan, img, scale)
                 let over = (scan.covers.map(\.box) + scan.lightBoxes + scan.pictures.map(\.box)).filter { $0.width * $0.height < 0.5 * pixels }
                 let maybe = candidates.filter { i in
                     let b = text.boxAt(i)
@@ -922,36 +932,106 @@ extension RedactionCheck {
         /// A box (wider than tall, so not a bullet or a check box) with no text under it, beside text on its line: the
         /// text around it keeps the positions it had, so the removed width can be measured from them.
         private func beside(_ p: Int, _ scan: PageScan) {
+            for cover in scan.covers where cover.rectLike && cover.box.width >= 12 && cover.box.width >= 1.5 * cover.box.height && cover.box.height >= 4 {
+                besideBox(p, cover.box)
+            }
+        }
+
+        /// A box with no text under it and text beside it on its line: reported (`RedactionLeak.glyphSpacing`).
+        private func besideBox(_ p: Int, _ box: RectD) {
             let text = texts[p]
             let units = Array(text.text.utf16)
-            for cover in scan.covers where cover.rectLike && cover.box.width >= 12 && cover.box.width >= 1.5 * cover.box.height && cover.box.height >= 4 {
-                let box = cover.box
-                var inside = false
-                var near: [Int] = []
-                for i in 0..<units.count where RedactionCheck.visible(units[i]) {
-                    let b = text.boxAt(i)
-                    if box.inflate(-0.5).contains(b.centerX, b.centerY) {
-                        inside = true
-                        break
-                    }
-                    let gap = b.right <= box.x + 0.5 ? box.x - b.right : b.x >= box.right - 0.5 ? b.x - box.right : Double.greatestFiniteMagnitude
-                    if b.centerY >= box.y && b.centerY <= box.bottom && b.height >= 0.4 * box.height && b.height <= 2.5 * box.height
-                        && gap <= max(2, b.height) {
-                        near.append(i)
-                    }
+            var inside = false
+            var near: [Int] = []
+            for i in 0..<units.count where RedactionCheck.visible(units[i]) {
+                let b = text.boxAt(i)
+                if box.inflate(-0.5).contains(b.centerX, b.centerY) {
+                    inside = true
+                    break
                 }
-                if inside || near.isEmpty || near.contains(where: reported[p].contains) { continue }
-                // The text on either side, with the box between: "Name: ▮ lives here".
-                var lines: [(start: Int, end: Int)] = []
-                for i in near {
-                    let l = text.lineAt(i)
-                    if !lines.contains(where: { $0.start == l.start && $0.end == l.end }) { lines.append(l) }
+                let gap = b.right <= box.x + 0.5 ? box.x - b.right : b.x >= box.right - 0.5 ? b.x - box.right : Double.greatestFiniteMagnitude
+                if b.centerY >= box.y && b.centerY <= box.bottom && b.height >= 0.4 * box.height && b.height <= 2.5 * box.height
+                    && gap <= max(2, b.height) {
+                    near.append(i)
                 }
-                lines.sort { text.boxAt($0.start).x < text.boxAt($1.start).x }
-                let left = lines.filter { text.boxAt($0.start).x < box.x }.map { text.string($0.start, $0.end).trimmingCharacters(in: .whitespaces) }
-                let right = lines.filter { text.boxAt($0.start).x >= box.x }.map { text.string($0.start, $0.end).trimmingCharacters(in: .whitespaces) }
-                add(RedactionFinding(.glyphSpacing, loc("Page {0}, beside a dark box", CoreLanguage.number(p + 1)), (left + ["▮"] + right).joined(separator: " "), page: p, box: box))
             }
+            if inside || near.isEmpty || near.contains(where: reported[p].contains) { return }
+            // The text on either side, with the box between: "Name: ▮ lives here".
+            var lines: [(start: Int, end: Int)] = []
+            for i in near {
+                let l = text.lineAt(i)
+                if !lines.contains(where: { $0.start == l.start && $0.end == l.end }) { lines.append(l) }
+            }
+            lines.sort { text.boxAt($0.start).x < text.boxAt($1.start).x }
+            let left = lines.filter { text.boxAt($0.start).x < box.x }.map { text.string($0.start, $0.end).trimmingCharacters(in: .whitespaces) }
+            let right = lines.filter { text.boxAt($0.start).x >= box.x }.map { text.string($0.start, $0.end).trimmingCharacters(in: .whitespaces) }
+            add(RedactionFinding(.glyphSpacing, loc("Page {0}, beside a dark box", CoreLanguage.number(p + 1)), (left + ["▮"] + right).joined(separator: " "), page: p, box: box))
+        }
+
+        /// Boxes in pictures: a redaction drawn into the page picture (as tools that turn pages into pictures draw it) or a
+        /// scan's black marker. In the page as drawn for `hiddenChars` (`img`), on each line of its text, a stretch of
+        /// columns dark across the line's middle, in a picture and wider than the line is tall, is a box; with text beside
+        /// it, it is reported as a drawn box is (`besideBox`). Not the boxes Inkvolt PDF's redaction says in the picture
+        /// give no width away (`Redaction.laidOutBoxes`: lines laid out again, blocks); the boxes of a line it had to leave
+        /// in place are reported, even just after it (they are left out).
+        private func boxesInPictures(_ p: Int, _ scan: PageScan, _ img: RenderedImage, _ scale: Double) -> [RectD] {
+            var found: [RectD] = []
+            let text = texts[p]
+            let pictures = scan.pictures.map(\.box).filter { $0.width >= 6 && $0.height >= 4 }
+            if text.isEmpty || pictures.isEmpty || img.width == 0 || img.height == 0 { return found }
+            let known = scan.covers.map(\.box) + scan.laidOut
+            let pixels = img.pixels
+            let w = img.width
+            func dark(_ x: Int, _ y: Int) -> Bool {
+                let o = (y * w + x) * 3
+                return Int(pixels[o]) * 30 + Int(pixels[o + 1]) * 59 + Int(pixels[o + 2]) * 11 < 70 * 100
+            }
+            func px(_ v: Double, _ hi: Int) -> Int { Int(exactly: min(max((v * scale).rounded(.toNearestOrEven), 0), Double(hi))) ?? 0 }
+            for (start, end, dx, _) in text.lineSpans where abs(dx) >= 0.99 {
+                var band = RectD.zero
+                for i in start..<end where RedactionCheck.visible(text.unit(i)) {
+                    let b = text.boxAt(i)
+                    if b.width > 0 && b.height > 0 { band = band.isEmpty ? b : band.union(b) }
+                }
+                if band.height < 4 || band.height > 200 { continue }
+                // The line's middle half: a box drawn over its words covers it, a letter's strokes never do.
+                let y0 = px(band.y + band.height / 4, img.height), y1 = max(px(band.bottom - band.height / 4, img.height), y0 + 1)
+                if y1 > img.height { continue }
+                func column(_ x: Int) -> Bool {
+                    var n = 0
+                    for y in y0..<y1 where dark(x, y) { n += 1 }
+                    return Double(n) >= 0.95 * Double(y1 - y0)
+                }
+                for pic in pictures where pic.y < band.bottom && pic.bottom > band.y {
+                    let x1 = px(pic.right, img.width)
+                    var x = px(pic.x, img.width)
+                    while x < x1 {
+                        var run = x
+                        while run < x1 && column(run) { run += 1 }
+                        if run == x {
+                            x += 1
+                            continue
+                        }
+                        // Its rows: up and down from the middle while (nearly) all its columns stay dark.
+                        let (from, to) = (x, run)
+                        func row(_ y: Int) -> Bool {
+                            var n = 0
+                            for c in from..<to where dark(c, y) { n += 1 }
+                            return Double(n) >= 0.9 * Double(to - from)
+                        }
+                        var top = y0, bottom = y1
+                        let reach = max(1, px(band.height, img.height))
+                        while top > 0 && y0 - top < reach && row(top - 1) { top -= 1 }
+                        while bottom < img.height && bottom - y1 < reach && row(bottom) { bottom += 1 }
+                        let box = RectD(Double(x) / scale, Double(top) / scale, Double(run - x) / scale, Double(bottom - top) / scale)
+                        x = run
+                        if box.width < max(6, 1.2 * box.height) || known.contains(where: { !$0.intersect(box).isEmpty })
+                            || found.contains(where: { !$0.intersect(box).isEmpty }) { continue }
+                        found.append(box)
+                    }
+                }
+            }
+            return found
         }
 
         /// Characters found not to show (not reported yet): under a dark box or comment, or else under other content or

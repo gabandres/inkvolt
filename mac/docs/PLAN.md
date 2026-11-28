@@ -2569,6 +2569,44 @@ Ported from Windows' modules and tests (2026-11-23, on `buildmac`).
   them. As on Windows, a paragraph turned so far that its box takes in other text (a heading above) can't be edited or
   turned again until Undo takes the turn back. Not checked by a person: the handle and the turned outline by eye, dragging it by hand.
 
+### Windows' additions of 2026-11-19 and 20 (roadmap 1.2, 1.3, 1.5, 2.4, 3.1)
+
+What an audit of 2026-11-27 found the Mac still lacked of Windows' work of 2026-11-19 and 20, ported with Windows' tests
+under their names (3.2's links in the exports were already ported, 803da39c). Mac differences:
+
+- **1.2, Batch prices a file by what its streams unpack to** (`BatchRunner.unpackedSize`, `pictureBytes`, `Inflate.length`;
+  counted ahead of admission on a thread of its own, `UnpackedAhead`). A stream counts only after a zlib header, as MuPDF's
+  zlib reads it, where Windows skips any two bytes as PDFsharp does: Apple's raw-deflate decoder doesn't check a stored
+  block's length against its complement, so a content stream's text read as deflate data counted the file after it (a
+  page's "0 0 1 rg" became a 12,576-byte stored block). The split-keyword test straddles the Mac's 1 MB reading blocks
+  (Windows': 64 KB, then 1 MB; its test kept 65,530-65,536).
+- **1.3, CFF and Type 1 widths in the accessibility check (31-016)** (`CffProgram.advance`, `advanceOfCid`, its Type 2
+  `WidthRun`, `combinedScale`; `Type1Program.advance`; `TextFont.programWidth`; the test fonts `TestFontPrograms`). As
+  Windows; the CFF DICT reader now reads real numbers (it read them as 0), which FontMatrix needs. Not run: the accessibility
+  corpus (`AccessibilityCorpusTests`, opt-in with `INKVOLT_A11Y_CORPUS`; Windows' `pdf/tools/a11y-corpus` PDFs aren't on the build Mac).
+- **2.4, row spans in tables without lines** (`AutoTag.unruledRowSpans`, in `tableBlocks` after the header rows are told).
+  As Windows; a label's own row that goes takes its height with it when the table has row heights. Tagging only: the
+  exports are as before (`A_table_without_lines_…` checks it), so `pdf/tools/export-corpus` has nothing new to see; the
+  tagging corpus wasn't run (its PDFs aren't on the build Mac).
+- **1.5, redacted lines laid out again and boxes in pictures** (`RedactionLines`, `Redaction.redact` with `RedactedPages`
+  and `RedactionMoves`, `/PdLaidOut` and `Redaction.laidOutBoxes`; the check's `boxesInPictures` and `besideBox`;
+  `PageText.lineSpans`). Apply Redactions, Redact by Pattern, Suggest Redactions and Batch's Redact Patterns tell the
+  check and the text laid back where the boxes went (`Redaction.RedactedData.blacked`, `moved`), and kept hits are looked
+  for where their words went. Mac differences: `PatternRedaction` is a value, so its `redact` is `mutating` (it keeps what
+  it blacked, as Windows' object does) and the app's Apply hands its result to `applied` before `verify`; the page's
+  paper color, of equal counts, is the one sampled first (as .NET's dictionary orders it). Rounding is .NET's (to even).
+  For a person to look at: a redacted line on screen and printed (the words' shading where they moved, under a pixel).
+- **3.1, Translate's looks and right-to-left lines: not ported yet** (the audit's run of 2026-11-27 stopped at the four
+  above). The Mac's Translate is Windows' of 2026-11-10; what it lacks is Windows' eeb4f0f4 and bfc86ffc (a regular word
+  in a bold paragraph, another color or class of font as `<span>`, scripts at the page's size and rise, the review's ten
+  fixes), 692487d7 (plain underlines, `ContentEditor.TranslateUnderlines`, `<u>`), b5f6fe02 (looks in right-to-left
+  text: `TextShaper.Shape` with a `GlyphStyle` per look), cb5c8bf8 (two or three other looks: `<span>`, `<font>`,
+  `<mark>`), 0d1de0c2 (scripts longer than 12 characters), c284dd12 and db89d996 (the real model's fixes;
+  `RightToLeftFont`), 04c9901f, 1dcf3497, 48424333 and e3238825 (right-to-left lines written in stretches,
+  `GlyphOrder.Stretches`, `JoinLeftToRight`; the pdf.js reading test). About 3,300 lines of Windows changes with their
+  tests (`TranslationLooksTests`, `TranslationTests`, `TranslationPdfJsTests`): one port of its own, in that order (the
+  styled shaping first, as the right-to-left stretches build on it).
+
 ## Open decisions
 
 None.
@@ -2599,5 +2637,7 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
   - 3.3 The printer's own copier: LEDM's copy start names (`LedmCopy.startNames`) are Windows' assumption until a
     recording of a printer that offers a start confirms them; the M234dw's copy documents answer but hold only walk-up
     defaults, no start (2026-11-27), so it isn't offered there.
+- Inkvolt PDF: Translate's looks and right-to-left lines of 2026-11-19 and 20 (roadmap 3.1), Windows' 12 commits listed under
+  "Windows' additions of 2026-11-19 and 20".
 - Speed: the drawing set's first 20 pages and Find miss their targets, as on Windows (`mac/tools/bench/RESULTS.md`).
 - Everything listed under "What a person must look at" and each section's "A person must look at" / "Not checked".

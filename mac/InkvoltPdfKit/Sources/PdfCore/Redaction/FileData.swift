@@ -8,10 +8,13 @@ enum Inflate {
     /// when it isn't one.
     static func zlib(_ data: ArraySlice<UInt8>, limit: Int) -> [UInt8]? {
         guard data.count >= 3 else { return nil }
-        let cmf = data[data.startIndex], flg = data[data.startIndex + 1]
-        // Deflate (8), a window of at most 32 KB, no preset dictionary, and the header's check bits.
-        guard cmf & 0x0F == 8, cmf >> 4 <= 7, flg & 0x20 == 0, (Int(cmf) << 8 | Int(flg)) % 31 == 0 else { return nil }
+        guard isZlibHeader(data[data.startIndex], data[data.startIndex + 1]) else { return nil }
         return raw(data.dropFirst(2), limit: limit)
+    }
+
+    /// A zlib header: deflate (8), a window of at most 32 KB, no preset dictionary, and the header's check bits.
+    static func isZlibHeader(_ cmf: UInt8, _ flg: UInt8) -> Bool {
+        cmf & 0x0F == 8 && cmf >> 4 <= 7 && flg & 0x20 == 0 && (Int(cmf) << 8 | Int(flg)) % 31 == 0
     }
 
     /// Raw DEFLATE (RFC 1951) inflated, at most `limit` bytes; nil when nothing could be read.
@@ -46,6 +49,41 @@ enum Inflate {
         }
         if failed && out.isEmpty { return nil }
         return out.count > limit ? Array(out.prefix(limit)) : out
+    }
+
+    /// How many bytes the raw DEFLATE data at `file`'s position inflates to (the Windows Core's
+    /// `BoundedFilters.InflatedLength`), read 64 KB at a time, inflated a chunk at a time and kept nowhere. Counting stops
+    /// once past `limit` (what it returns is then more than the limit); data damaged part way counts what came out before
+    /// the damage. `cancel` is checked at every chunk.
+    static func length(_ file: FileHandle, limit: Int, cancel: CancelToken? = nil) throws -> Int {
+        var stream = compression_stream(dst_ptr: UnsafeMutablePointer<UInt8>(bitPattern: 1)!, dst_size: 0,
+                                        src_ptr: UnsafePointer<UInt8>(bitPattern: 1)!, src_size: 0, state: nil)
+        guard compression_stream_init(&stream, COMPRESSION_STREAM_DECODE, COMPRESSION_ZLIB) == COMPRESSION_STATUS_OK else { return 0 }
+        defer { compression_stream_destroy(&stream) }
+        let chunk = 64 << 10
+        var buffer = [UInt8](repeating: 0, count: chunk)
+        var total = 0
+        while true {
+            let input = [UInt8](try file.read(upToCount: chunk) ?? Data())
+            let last = input.count < chunk
+            var status = COMPRESSION_STATUS_OK
+            input.withUnsafeBufferPointer { src in
+                stream.src_ptr = src.baseAddress ?? UnsafePointer<UInt8>(bitPattern: 1)!
+                stream.src_size = src.count
+                buffer.withUnsafeMutableBufferPointer { dst in
+                    repeat {
+                        stream.dst_ptr = dst.baseAddress!
+                        stream.dst_size = chunk
+                        status = compression_stream_process(&stream, last ? Int32(COMPRESSION_STREAM_FINALIZE.rawValue) : 0)
+                        let produced = chunk - stream.dst_size
+                        total += produced
+                        if status != COMPRESSION_STATUS_OK || total > limit || (produced == 0 && stream.src_size == 0) { break }
+                    } while true
+                }
+            }
+            try cancel.check()
+            if status != COMPRESSION_STATUS_OK || total > limit || last { return total }
+        }
     }
 }
 

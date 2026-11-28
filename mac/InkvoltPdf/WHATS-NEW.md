@@ -6,6 +6,11 @@ collects what's done since the last release and is never shown. Short lines, in 
 their Spanish, line for line, shown when the app runs in Spanish: an English line needs its Spanish there (`PdfStringsTests`).
 
 ## Next
+- Redaction no longer lets the width of what you removed show. Text after a black box used to stay where it was, so the gap (and the box itself) could tell how long the hidden words were. Now each redacted line is laid out again: its words keep their order, spaces are even, and the box's width is rounded, so the line looks the same whatever was under it.
+- Check Redaction also finds black boxes drawn into a page's picture (by tools that turn pages into images, or on a scan) with text beside them that may give the hidden width away.
+- Make Accessible finds rows that share a label in tables drawn without lines (a region over its countries) and tags the label as spanning those rows, so a screen reader reads it with each of them.
+- Accessibility Check compares the widths a PDF gives its characters with the font's own for every kind of embedded font, not just TrueType: CFF and Type 1 fonts too (most PDFs from InDesign, LaTeX and Acrobat).
+- Batch runs a small file that unpacks to far more than its size (a 200 KB file holding 200 MB) on its own, so it no longer takes memory from the files beside it.
 - Search Folders finds a phrase of common words with less reading: a file's pages are read together and shared among the Mac's processors, and a page of plain text is told quickly. A phrase that starts at the end of a run of letters and digits over 1,024 long (a long code or hash) is found too.
 - Export to PowerPoint and HTML keeps the PDF's links: web and email links still open, and a link to another page goes to that slide or that part of the page. Only the words the link covers are linked. Reflow's column has the PDF's links too.
 - Compare Files lines up a scanned page that was scanned at another size or a quarter turn off (sideways or upside down) with the other version before showing what looks different, so the same page no longer looks different all over.

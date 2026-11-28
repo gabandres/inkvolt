@@ -184,4 +184,112 @@ import Testing
         #expect(table.rows[1][0].rowSpan == 2)
         #expect(table.headerColumn)
     }
+
+    // ---- Tables without lines ----
+
+    /// A table drawn with no lines at all, three columns under a heading and a sentence: each cell's text at (row, column),
+    /// the first row bold (a row of 1.5 sits halfway between rows 1 and 2, as a label centered on them).
+    private static func unruled(_ cells: [(text: String, row: Double, col: Int)]) -> [UInt8] {
+        var p = ExportTestPdf.Canvas()
+        p.text("Crates sold", "F2", 16, 72, 80)
+        p.text("The table below gives the crates sold in each country, grouped by region.", "F1", 11, 72, 110)
+        let cols: [Double] = [72, 222, 372]
+        for c in cells { p.text(c.text, c.row == 0 ? "F2" : "F1", 11, cols[c.col], 150 + c.row * 18) }
+        let last = cells.map(\.row).max() ?? 0
+        p.text("Figures are rounded to the nearest crate and cover the whole year.", "F1", 11, 72, 150 + 18 * (last + 3))
+        return ExportTestPdf.written([p])
+    }
+
+    private static let header: [(text: String, row: Double, col: Int)] = [("Region", 0, 0), ("Country", 0, 1), ("Crates", 0, 2)]
+
+    private static func passes(_ tagged: [UInt8]) throws {
+        let report = try AccessibilityCheck.run(tagged, nil)
+        #expect(report.passed, "\(report.failures.map { "\($0.condition): \($0.problem)" })")
+    }
+
+    @Test func A_table_without_lines_has_its_group_labels_span_the_rows_under_them() throws {
+        // "Europe" heads France, Spain and Italy; "Asia" Japan and Korea: each label at the top of its group.
+        let pdf = Self.unruled(Self.header + [
+            ("Europe", 1, 0), ("France", 1, 1), ("40", 1, 2), ("Spain", 2, 1), ("52", 2, 2), ("Italy", 3, 1), ("31", 3, 2),
+            ("Asia", 4, 0), ("Japan", 4, 1), ("12", 4, 2), ("Korea", 5, 1), ("13", 5, 2),
+        ])
+        let table = try Self.tableBlock(pdf)
+        try #require(table.rows.count == 6)
+        #expect(table.headerRows == 1)
+        #expect(table.rows[1][0].text == "Europe" && table.rows[1][0].rowSpan == 3)
+        #expect(table.rows[2][0].covered && table.rows[3][0].covered)
+        #expect(table.rows[4][0].text == "Asia" && table.rows[4][0].rowSpan == 2)
+        #expect(table.rows[5][0].covered)
+        let tagged = try Self.write(pdf)
+        let rows = try Self.writtenRows(tagged)
+        #expect(rows.map(\.count) == [3, 3, 2, 2, 3, 2])
+        #expect(rows[1][0].rowSpan == 3)
+        #expect(rows[4][0].rowSpan == 2)
+        try Self.passes(tagged)
+
+        // Export is as before: the rows as drawn, the empty cells empty.
+        let engine = try PdfEngine.open(pdf)
+        defer { engine.close() }
+        let tables = DocLayout.analyze([try engine.exportPage(0, images: true)]).flatMap(\.tables)
+        try #require(tables.count == 1)
+        #expect(tables[0].rows.count == 6)
+        #expect(tables[0].rows.flatMap { $0 }.allSatisfy { $0.rowSpan == 1 })
+    }
+
+    @Test func Group_labels_centered_on_their_rows_span_them() throws {
+        // "Europe" sits between France and Spain (a row of its own, which goes); "Asia" in the middle of its three rows.
+        let pdf = Self.unruled(Self.header + [
+            ("France", 1, 1), ("40", 1, 2), ("Europe", 1.5, 0), ("Spain", 2, 1), ("52", 2, 2),
+            ("Japan", 3, 1), ("12", 3, 2), ("Asia", 4, 0), ("Korea", 4, 1), ("13", 4, 2), ("India", 5, 1), ("9", 5, 2),
+        ])
+        let table = try Self.tableBlock(pdf)
+        try #require(table.rows.count == 6)
+        #expect(table.rows[1][0].text == "Europe" && table.rows[1][0].rowSpan == 2)
+        #expect(table.rows[2][0].covered)
+        #expect(table.rows[3][0].text == "Asia" && table.rows[3][0].rowSpan == 3)
+        #expect(table.rows[4][0].covered && table.rows[5][0].covered)
+        #expect(table.rows[1][1].text == "France")
+        let tagged = try Self.write(pdf)
+        #expect(try Self.writtenRows(tagged).map(\.count) == [3, 3, 2, 3, 2, 2])
+        try Self.passes(tagged)
+    }
+
+    @Test func An_empty_cell_that_follows_no_group_pattern_spans_nothing() throws {
+        // A missing value in the middle column, and a first column with every label: no spans.
+        let pdf = Self.unruled(Self.header + [
+            ("Europe", 1, 0), ("France", 1, 1), ("40", 1, 2), ("Europe", 2, 0), ("52", 2, 2), ("Asia", 3, 0), ("Japan", 3, 1), ("12", 3, 2),
+            ("Asia", 4, 0), ("Korea", 4, 1), ("13", 4, 2),
+        ])
+        let table = try Self.tableBlock(pdf)
+        #expect(table.rows.flatMap { $0 }.allSatisfy { $0.rowSpan == 1 && !$0.covered })
+    }
+
+    @Test func One_missing_name_in_the_first_column_is_no_group() throws {
+        // Alice, (nothing), Carol, Dan: one empty first cell under a name is a value missing, not a group of two.
+        let pdf = Self.unruled([("Name", 0, 0), ("Visits", 0, 1), ("Orders", 0, 2),
+                                ("Alice", 1, 0), ("1", 1, 1), ("2", 1, 2), ("3", 2, 1), ("4", 2, 2), ("Carol", 3, 0), ("5", 3, 1), ("6", 3, 2),
+                                ("Dan", 4, 0), ("7", 4, 1), ("8", 4, 2)])
+        let table = try Self.tableBlock(pdf)
+        #expect(table.rows.count == 5)
+        #expect(table.rows.flatMap { $0 }.allSatisfy { $0.rowSpan == 1 && !$0.covered })
+    }
+
+    @Test func Labels_in_rows_of_their_own_above_their_groups_head_the_rows_under_them() throws {
+        // "Europe" alone in its row over France and Germany, "Asia" over Japan and Korea: each heads the two rows below it.
+        let pdf = Self.unruled(Self.header + [
+            ("Europe", 1, 0), ("France", 2, 1), ("40", 2, 2), ("Germany", 3, 1), ("52", 3, 2),
+            ("Asia", 4, 0), ("Japan", 5, 1), ("12", 5, 2), ("Korea", 6, 1), ("13", 6, 2),
+        ])
+        let table = try Self.tableBlock(pdf)
+        try #require(table.rows.count == 5) // the labels' own rows went
+        #expect(table.rows[1][0].text == "Europe" && table.rows[1][0].rowSpan == 2)
+        #expect(table.rows[1][1].text == "France")
+        #expect(table.rows[2][0].covered)
+        #expect(table.rows[3][0].text == "Asia" && table.rows[3][0].rowSpan == 2)
+        #expect(table.rows[3][1].text == "Japan")
+        #expect(table.rows[4][0].covered)
+        let tagged = try Self.write(pdf)
+        #expect(try Self.writtenRows(tagged).map(\.count) == [3, 3, 2, 3, 2])
+        try Self.passes(tagged)
+    }
 }

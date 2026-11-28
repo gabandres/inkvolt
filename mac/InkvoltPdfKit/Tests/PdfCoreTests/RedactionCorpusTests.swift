@@ -29,20 +29,21 @@ final class RedactionCorpusTests {
     }
 
     private static func applyAndReadBack(_ data: [UInt8], _ password: String?, _ reader: PlantedReader) throws
-        -> (result: [UInt8], found: RedactionSearchResult, left: [RedactionMatch]) {
+        -> (result: [UInt8], found: RedactionSearchResult, left: [RedactionMatch], blacked: [Int: [RectD]]) {
         let engine = try PdfEngine.open(data, password: password)
         let found = try RedactionSearch.find(engine, RedactionCorpus.search, ocr: reader)
         engine.close()
         findsAll(found.hits)
         let areas = RedactionSearch.areas(found.hits)
-        let result = try Redaction.apply(data, password, areas)
+        let redaction = try Redaction.redact(data, password, areas)
+        let result = redaction.data
         let left = try RedactionSearch.readBack(result, password, RedactionCorpus.search, ocr: reader, redactedPages: Set(areas.keys), kept: []).hits
-        return (result, found, left)
+        return (result, found, left, redaction.blacked)
     }
 
     @Test(.enabled(if: ScanCorpus.runs)) func findsEveryPlantedValueAndLeavesNoneAfterApplying() throws {
         let (data, reader) = try RedactionCorpus.make()
-        let (result, found, left) = try Self.applyAndReadBack(data, nil, reader)
+        let (result, found, left, blacked) = try Self.applyAndReadBack(data, nil, reader)
         #expect(left.isEmpty, "Still there: \(left.map { "\($0.page + 1):\($0.pattern):\($0.normalized)" })")
 
         // Nothing of any planted value is in the pages' text or the file, and each hit's place is black.
@@ -55,8 +56,10 @@ final class RedactionCorpusTests {
         let report = try RedactionCheck.run(result, nil, RedactionCheckOptions(values: RedactionSearch.values(found.hits), patterns: RedactionCorpus.search, valuesOnly: true))
         #expect(report.isClean, "\(report.summary) \(report.findings.map { "\($0.place): \($0.kind)" })")
         #expect(!report.incomplete, "\(report.notes)")
-        for hit in found.hits {
-            for r in hit.rects { #expect(try Core2Pdf.ink(result, hit.page, r.inflate(-1)) > 0.9, "page \(hit.page + 1) \(hit.pattern) blacked out") }
+        // Each box is black where it now is (a line with words left beside a hit is laid out again).
+        #expect(Set(found.hits.map(\.page)) == Set(blacked.keys))
+        for (page, boxes) in blacked {
+            for r in boxes where r.width > 3 && r.height > 3 { #expect(try Core2Pdf.ink(result, page, r.inflate(-1)) > 0.9, "page \(page + 1) \(r) blacked out") }
         }
     }
 

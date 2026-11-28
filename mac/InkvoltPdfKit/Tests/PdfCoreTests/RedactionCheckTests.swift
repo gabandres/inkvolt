@@ -55,8 +55,8 @@ struct RedactionCheckTests {
         let engine = try PdfEngine.open(data)
         let values = try RedactionCheck.valuesUnder(engine, areas)
         engine.close()
-        let redacted = try Redaction.apply(data, nil, areas, dpi: 100)
-        return (redacted, try RedactionCheck.run(redacted, nil, RedactionCheckOptions(values: values, areas: areas, original: data)))
+        let redacted = try Redaction.redact(data, nil, areas, dpi: 100)
+        return (redacted.data, try RedactionCheck.run(redacted.data, nil, RedactionCheckOptions(values: values, areas: redacted.blacked, original: data)))
     }
 
     static func describe(_ r: RedactionCheckReport) -> String { r.findings.map { "\($0.kind) \($0.place): \($0.text)" }.joined(separator: "; ") }
@@ -171,7 +171,21 @@ struct RedactionCheckTests {
         return RedactionTestPdf.stream(latin1String(bytes), "/Type /XObject /Subtype /Image /Width 4 /Height 4 /ColorSpace /DeviceRGB /BitsPerComponent 8")
     }
 
-    static let badKinds = ["box", "highlight", "black-on-black", "white", "mark", "picture", "picture-comment", "spacing"]
+    static let badKinds = ["box", "highlight", "black-on-black", "white", "mark", "picture", "picture-comment", "spacing", "picture-spacing"]
+
+    /// A black picture (one pixel) for a box drawn into the page's picture.
+    static func blackPicture(_ extra: String = "") -> String {
+        RedactionTestPdf.stream("\0", "/Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 \(extra)")
+    }
+
+    /// The name taken out and a box drawn in a picture where it was (as tools that turn pages into pictures do), "lives
+    /// here" left where it was. `pictureExtra` goes in the picture's dictionary.
+    static func pictureSpacing(_ pictureExtra: String = "") throws -> [UInt8] {
+        let b = try nameBox()
+        let cm = "\(f(b.x2 - b.x1)) 0 0 \(f(b.y2 - b.y1)) \(f(b.x1)) \(f(b.y1)) cm"
+        return onePage("BT /F1 18 Tf 72 700 Td (Name: ) Tj ET q \(cm) /Im1 Do Q BT /F1 18 Tf \(f(b.x2 + 5)) 700 Td (lives here) Tj ET",
+                       more: [blackPicture(pictureExtra)], xobjects: "/Im1 6 0 R")
+    }
 
     /// The roadmap's corpus: bad redactions of each kind. `kind` picks one.
     static func bad(_ kind: String) throws -> (bad: [UInt8], expected: RedactionLeak, area: RectD) {
@@ -203,6 +217,8 @@ struct RedactionCheckTests {
         // The name was taken out and a box drawn where it was; "lives here" kept its place.
         case "spacing":
             return (onePage("BT /F1 18 Tf 72 700 Td (Name: ) Tj ET 0 g \(re) f BT /F1 18 Tf \(f(b.x2 + 5)) 700 Td (lives here) Tj ET"), .glyphSpacing, area)
+        // The same, the box drawn into a picture: a pixel redaction (roadmap 1.5, glyph spacing around pixel redactions).
+        case "picture-spacing": return (try pictureSpacing(), .glyphSpacing, area)
         default: throw PdfEditError(kind)
         }
     }
@@ -226,6 +242,32 @@ struct RedactionCheckTests {
         #expect(after.isClean, "\(Self.describe(after))")
         let fixed = try RedactionCheck.run(RedactionCheck.fix(bad, nil, report.findings), nil)
         #expect(fixed.isClean, "\(Self.describe(fixed))")
+    }
+
+    @Test func boxesOfALineLaidOutAgainAreNotFlagged() throws {
+        let b = try Self.nameBox()
+        let box = RectD.fromEdges(b.x1, 792 - b.y2, b.x2, 792 - b.y1)
+        #expect(try RedactionCheck.run(Self.pictureSpacing(), nil).findings.contains { $0.kind == .glyphSpacing })
+        // Inkvolt PDF's redaction says in the picture which boxes it laid out with their lines, and the check after it is told.
+        let marked = try Self.pictureSpacing("/PdLaidOut [\(Self.f(box.x)) \(Self.f(box.y)) \(Self.f(box.width)) \(Self.f(box.height))]")
+        #expect(try !RedactionCheck.run(marked, nil).findings.contains { $0.kind == .glyphSpacing })
+        // Being told it was just redacted there isn't enough: only what the picture records gives nothing away (a line the
+        // redaction had to leave in place isn't recorded, and is reported).
+        let told = try RedactionCheck.run(Self.pictureSpacing(), nil, RedactionCheckOptions(areas: [0: [box]]))
+        #expect(told.findings.contains { $0.kind == .glyphSpacing })
+        // A marker that isn't numbers, or is huge, is read as far as it makes sense.
+        #expect(try RedactionCheck.run(Self.pictureSpacing("/PdLaidOut [/a (b) 1 2]"), nil).findings.contains { $0.kind == .glyphSpacing })
+        _ = try RedactionCheck.run(Self.pictureSpacing("/PdLaidOut [\(Array(repeating: "99999999999 -99999999999 99999999999 99999999999", count: 5000).joined(separator: " "))]"), nil)
+
+        // What the redaction writes: its boxes, where the layout put them.
+        let page = Self.onePage(Self.line)
+        let redacted = try Redaction.redact(page, nil, try Self.areasOf(page, 0, Self.name), dpi: 72)
+        let doc = try PdfEdit.openToRead(redacted.data, nil)
+        let image = try #require(doc.page(0).dict("Resources")?.dict("XObject")?.dict("PdRedacted"))
+        let written = Redaction.laidOutBoxes(image)
+        try #require(redacted.blacked[0]?.count == 1 && written.count == 1, "\(redacted.blacked) \(written)")
+        #expect(abs(redacted.blacked[0]![0].x - written[0].x) <= 0.1)
+        #expect(abs(redacted.blacked[0]![0].width - written[0].width) <= 0.1)
     }
 
     @Test func aRedactedAreaThatStillShowsSomethingIsFound() throws {
