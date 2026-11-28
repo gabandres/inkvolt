@@ -195,7 +195,7 @@ enum Report {
         guard isRunning, !AppTest.isActive, !CompareTest.isActive, !AttachmentsLayersTest.isActive, !PagesTest.opensDocument,
               !FolderSearchTest.isActive, !FormFillTest.isActive, !ParagraphEditTest.isActive, !TranslateTest.isActive,
               !WindowsTest.isActive, !FolderAskTest.isActive, !MeaningTest.isActive,
-              !AskEditTest.isActive else { return }
+              !AskEditTest.isActive, !ParityTest.isActive else { return }
         if uxShots {
             // The synthetic text document only; the form opens, unseen, and is closed at the end.
             guard controller.pdf.fileURL?.path == syntheticPath else { return }

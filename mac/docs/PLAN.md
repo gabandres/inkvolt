@@ -1245,6 +1245,7 @@ at under "What a person must look at" and in each section.
 | 4.16 | The Reflow view (roadmap 4.16): View › Reflow (⌘3), the document's text as one column in place of the pages, Export's HTML in a WKWebView with page scripts off at `Reflow.address`, the look following the view's zoom and Dark Pages, the page kept both ways, links to the browser, read-only but for its commands (`Reflow`, `ReflowPosition`, ReflowView.swift; `--edit --only-reflow` drives it) | ReflowTests |
 | 4.2 | Find and Replace across the document (roadmap 4.2): Edit › Find › Find and Replace…, a sheet listing every match with its page and the words around it as it is typed, Replace and Replace All (one undo step, one save, what couldn't be replaced as asked listed) (`TextReplace`, `ContentEditor.paragraphsOf`/`replaceParagraphIn`, ReplaceSheet.swift) | TextReplaceTests (with `ReplacedTextReadsTheSameInPdfJs`, opt-in) |
 | X1 | Export Pages as Images (the parity audit of 2026-11-27, below): File › Export To › Pages as Images… and Convert › Images…, the pages chosen as PNG or JPEG at 72 to 600 dpi in a folder, named "name - page N.png" without replacing a file, a page too large lowered under 64 megapixels after asking, a page that can't be read left out and said, Cancel keeping the images before it (`PageImageExport`; ExportImages.swift; `--edit --only-parity` drives it) | PageImageExportTests (Mac only: Windows' `FileActions.ExportImages` is app code without tests) |
+| X6 | File › Show in Finder and Close All (⌥⌘W) (the parity audit): the document's file in Finder; this window's tabs closed one by one, each asking, Cancel stopping (FileCommands.swift) | (none: app code on Windows too; `ParityTest` drives them) |
 
 From the steps, besides the sections below:
 - D8: `release.sh --publish` rebuilds and re-notarizes, so the published DMG's SHA-256 differs from the one verified
@@ -1357,8 +1358,8 @@ From the steps, besides the sections below:
   the look) run in their own world (`.defaultClient`), sharing only the page's elements. The text size follows the
   view's zoom alone: the Mac has no Text size for apps (Windows' `TextScale`), so `ReflowLook.textScale` is 1. The
   commands that run are `Reflow.runs`' by the Mac's menu actions (`Reflow.runsAction`, `macActions`: those the Mac has,
-  with Page Setup, Share and Dark Pages, which are commands here; Show in Folder, Close All, Back and
-  Forward aren't on the Mac's menus), checked in the window's menu validation and the command bar; Copy and Select All
+  with Page Setup, Share and Dark Pages, which are commands here; Back and Forward
+  aren't on the Mac's menus), checked in the window's menu validation and the command bar; Copy and Select All
   are the web view's own. Entering Reflow closes the organizer and the Find bar (as Windows); Organize Pages leaves
   it. A message (preparing, nothing to reflow, couldn't be made) shows in its place with Back to Pages; nothing to
   reflow says Recognize Text where Windows adds Scan & OCR. The column has the PDF's links (E15's, below), followed
@@ -2450,6 +2451,12 @@ Windows as the spec; `ParityTest` (`--edit --only-parity`) drives them in the ap
   Browse…). The notice names the folder, not its whole path. The images come from what is shown (the Layers pane's
   choice), as Windows exports from its view engine. Not checked by a person: the sheet by eye and with VoiceOver, a
   very large page's question.
+- Show in Finder and Close All (X6): File › Show in Finder is Windows' Show in Folder (the Mac's word), for a saved
+  file. macOS has no Close All of its own here (the menu bar is built from `DocumentCommands`, and AppKit's
+  `closeAllDocuments` runs only when quitting), so File › Close All (⌥⌘W, Windows' Ctrl+Shift+W) closes this window's
+  tabs one after the other, each asking when it has changes with its tab in front; Cancel keeps it and the rest, as
+  Windows' Close All keeps a window's tabs. A window of tabs is Windows' window (4.9). Not checked by a person: the
+  Finder window, Close All's questions by eye.
 
 ### Paragraph editing (roadmap 2.1)
 

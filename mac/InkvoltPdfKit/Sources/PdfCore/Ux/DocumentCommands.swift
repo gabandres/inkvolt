@@ -257,6 +257,9 @@ public enum DocumentCommands {
         c("Scan the Backs…", "scanBacks:", needs: [.pages]),
         sep,
         c("Close", "performClose:", "w"),
+        // Windows: File › Close All (Ctrl+Shift+W; ⌥⌘W is the Mac's Close All): every document of this window's tabs,
+        // each asking to save, as Windows closes a window's tabs.
+        c("Close All", "closeAll:", "w", [.command, .option]),
         c("Save", "saveDocument:", "s"),
         c("Save As…", "saveDocumentAs:", "s", [.command, .shift]),
         .submenu(CommandMenu("Save as PDF/A", [
@@ -265,6 +268,8 @@ public enum DocumentCommands {
         ])),
         c("Revert to Saved", "revertDocumentToSaved:"),
         c("Reload from Disk", "reloadFromDisk:", "r", [.command, .option], needs: [.savedFile]),
+        // Windows: File › Show in Folder (the Mac's word is Finder).
+        c("Show in Finder", "showInFinder:", needs: [.savedFile]),
         sep,
         .submenu(CommandMenu("Export To", [
             c("Word…", "exportWord:", needs: longTask),

@@ -7,6 +7,8 @@ import PrintCore
 /// of the test's own, read back, a taken name not replaced). Only counts and states are written.
 @MainActor
 struct ParityTest {
+    /// While it runs, the documents it opens get only its checks (`Report.documentOpened`).
+    static var isActive = false
     let controller: DocumentWindowController
     let name: String
     private var lines: [String] = []
@@ -38,7 +40,10 @@ struct ParityTest {
 
     mutating func run() async {
         lines.append("== \(name): Windows parity (\(controller.engine.pageCount) pages)")
+        Self.isActive = true
+        defer { Self.isActive = false }
         await exportImages()
+        await showInFinderAndCloseAll()
         Report.write(lines.joined(separator: "\n"))
         Report.write("parity: \(failures == 0 ? "PASS" : "FAIL (\(failures))")")
     }
@@ -70,6 +75,34 @@ struct ParityTest {
         } else {
             check(false, "export images: page 2's PNG read back")
         }
+        await settle()
+    }
+
+    // MARK: Show in Finder, Close All
+
+    private mutating func showInFinderAndCloseAll() async {
+        let show = menuItem(loc("Show in Finder"))
+        check(show.map { controller.validateMenuItem($0) } == (controller.pdf.session?.filePath != nil),
+              "show in Finder: File › Show in Finder enabled only for a saved file")
+        let closeAll = menuItem(loc("Close All"))
+        check(closeAll?.keyEquivalent == "w" && closeAll?.keyEquivalentModifierMask == [.command, .option], "close all: File › Close All is ⌥⌘W")
+        // Three new (unsaved) documents, each question answered by the test: Don't Save closes the first, Cancel on the
+        // second stops there and keeps it and the third; then Don't Save for both closes them.
+        guard let a = NewDocuments.open(SyntheticPdf.make(), name: "parity-a.pdf"),
+              let b = NewDocuments.open(SyntheticPdf.make(), name: "parity-b.pdf"),
+              let c = NewDocuments.open(SyntheticPdf.make(), name: "parity-c.pdf"),
+              let bc = b.windowControllers.first as? DocumentWindowController else { return check(false, "close all: three new documents opened") }
+        await bc.editor.addNote(page: 0, at: PointD(16, 48), text: "Unsaved", color: nil)
+        a.testCloseAnswer = .dontSave
+        b.testCloseAnswer = .cancel
+        c.testCloseAnswer = .dontSave
+        let open = { (d: PdfDocument) in NSDocumentController.shared.documents.contains { $0 === d } }
+        let stopped = await DocumentWindowController.closeEach([a, b, c])
+        check(!stopped && !open(a) && open(b) && open(c), "close all: the first closed, Cancel kept the changed one and the rest")
+        b.testCloseAnswer = .dontSave
+        let all = await DocumentWindowController.closeEach([b, c])
+        check(all && !open(b) && !open(c), "close all: Don't Save closed the others (\(a.closeQuestions + b.closeQuestions + c.closeQuestions) questions)")
+        controller.window?.makeKeyAndOrderFront(nil)
         await settle()
     }
 }

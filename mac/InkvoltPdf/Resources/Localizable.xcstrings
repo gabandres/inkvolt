@@ -13069,17 +13069,6 @@
         }
       }
     },
-    "Show in Finder": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mostrar en Finder"
-          }
-        }
-      }
-    },
     "Show looks different": {
       "extractionState": "manual",
       "localizations": {
