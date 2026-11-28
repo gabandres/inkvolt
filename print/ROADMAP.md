@@ -21,7 +21,10 @@ imaging code, the presets, the alert rules). Effort: S (about a week), M (2-4 we
 Windows and on the Mac. Each item names its Mac half; a Windows-only mechanism (WIA, the spooler, the Store package) gets
 its Mac equivalent named (ImageCaptureCore, CUPS, the App Store build) or the reason there is none. The .NET code and
 its tests are the Mac half's spec. **Every item is built on Windows. The Mac halves still open wait for a new Mac**
-(owner, 2026-11-17: no Mac; `docs/HANDOFF.md`).
+(owner, 2026-11-17: no Mac; `docs/HANDOFF.md`). Outside the items, the Mac has had since 2026-11-27 what the parity
+audit found missing: Open With and drops (Windows' "Open with" entries), presets from the Dock and the menu bar item and
+`--preset` (the jump list, the tray's Scan with), Help, the command palette (⌘K), the store rating request and each
+printer's alert with Open printer and Pause alerts (mac/docs/PLAN.md, "The ways in from outside the window").
 
 ## Free and Pro
 

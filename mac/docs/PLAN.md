@@ -181,7 +181,7 @@ mac/InkvoltPrintKit --build-system native`.
   vectors run in PrintMacTests only; the engine is discovered once per printer and Ku cached
   (`TheAgentIsDiscoveredThenReadSignedAndEncrypted` counts 1 discovery here, 2 on Windows;
   `AUsersKeysAreWorkedOutOncePerPassphraseNotPerEngine` is Mac only); no `SnmpLogins.rename` in use (the Mac's printer ids
-  never change); SNMP Access… is in the sidebar's context menu (no Ctrl+K palette).
+  never change); SNMP Access… is in the sidebar's context menu and the command palette (⌘K).
   **The refused state as Windows' (2026-11-23, Windows' 4e63ad92 and 5a2eea81; what was "Windows ahead"):** a refusal
   is the printer's only from the engine ID its signed answers came from, remembered with its `SnmpDevice` (`engineId`, in
   the state file, not a secret; the monitor takes it at each signed connection, `SnmpDevice.answered`, `isItsEngine`), so
@@ -510,7 +510,7 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   `job-impressions-completed` (copies included), else `job-media-sheets-completed`; color and two-sided come from the job's
   `print-color-mode` and `sides` (not known when the printing app set them in its driver's own options). The printer is the
   queue's name as macOS shows it; a job from this Mac (`localhost`) names no computer. cupsd leaves out other users' names
-  and documents: they total under "(not known)". There is no command palette, so the menu item is the way in. The demo's
+  and documents: they total under "(not known)". The menu item and the command palette's Print log… are the way in. The demo's
   three months come from a generator of its own (Windows' `System.Random` can't be reproduced). The file tests that make a
   file unreadable or its folder read-only (Windows holds it open) run on the Mac only. Not checked: a person watching a week
   of real jobs against the printers' own counts, the window by eye and with VoiceOver.
@@ -864,6 +864,37 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   and draw, with Add, Remove, Turn Saved Photo and Find Again (the Windows photo view). Its rules are PrintCore's
   `PhotoBoxEditor`, tested; the Windows app keeps them in its view. Option-arrows turn a box (Windows: Ctrl-arrows, which
   macOS keeps for Spaces); the pointer shows what a press grabs; VoiceOver hears the status after each change.
+- **The ways in from outside the window (2026-11-27, the parity audit; Windows' `ShellIntegration`, jump list, tray Scan
+  with, `HelpDialog`, Ctrl+K palette, `RatingRequest` and toasts).** PrintCore `HandedFiles`, `PrintPalette`,
+  `PaletteSearch`, `RatingProgress` (`PrintState.rating`), `AlertToasts`; `HandedFilesTests` (no Windows test: App.xaml.cs's
+  helpers), `PaletteTests`, `RatingPromptTests`, `AlertToastTests` (PC). The app's `AppCommands`, `PrintCommandPalette`,
+  `HelpWindow`, `RatingRequest`; `--report … --demo --extras`. **Files:** Info.plist offers Inkvolt Print for PDFs and
+  pictures (Viewer, `LSHandlerRank` Alternate: Open With lists it, never the default app; nothing to unregister: the
+  entries go with the app), Finder's opens arrive as `application(_:open:)`, and the window takes dropped files; the first
+  PDF goes to Print a PDF (its print panel, or straight to the printer by its route: there is no Print tab to load it into),
+  else the pictures to Print Photos, on the printer `HandedFiles.target` picks (Windows' rule, plus the first printer when
+  none is selected; it waits up to 10 s for one to be listed). The command line's `file.pdf --queue <name>` (Windows'
+  09a33387) chooses the printer of that macOS queue; a file comes before the options, and AppKit's own opening of
+  arguments is off (`NSTreatUnknownArgumentsAsOpen`) so it isn't handled twice. Inkvolt PDF for Mac hands nothing over:
+  macOS has no broken-driver case like Windows'. **Presets:** File › Scan With (⌘1…⌘9 anywhere in the window, Windows'
+  Ctrl+1…9; the Scan tab's buttons keep theirs) and the menu bar item's Scan With list the first nine; the Dock menu has
+  Scan: <preset> for the first five (Windows' jump list); `--preset <id or name>` runs one at launch, and a second launch
+  with it (`open -n … --args --preset id`) hands it to the copy already running through a distributed notification
+  carrying only the id (a sandboxed app's userInfo isn't delivered; Windows' named pipe), then quits. A preset deleted
+  since runs nothing; with no scanner after 30 s it says so (Windows' words). **Help** (⌘?, Help › Inkvolt Print Help):
+  the Mac's own shortcuts, Can't find a printer? with Local Network access named and Open Local Network Settings, Add a
+  Printer…, Report a Problem…, Inkvolt Pro…; no What's New (the App Store shows it) and no Open Log Folder (the Mac app
+  keeps no log). **The command palette** (View › Command Palette…, ⌘K; nothing else in Inkvolt Print uses ⌘K, so not
+  Inkvolt PDF's ⇧⌘K): Windows' list with the Mac's tabs (Go to Status, Scan, Printer settings: Print, Copy and Photos are
+  menus here), Set up in macOS, Reconnect (the printer's live connection started again), Printer maintenance… (the status
+  tab's card), Fix printing problems… only while Fix It… shows, no What's new; ⌘ shortcuts and SF Symbols. **Rating:**
+  Windows' rule in a copy the App Store or TestFlight installed (it has a receipt), never in demo mode;
+  `AppStore.requestReview(in:)`, which macOS may show or not; asking counts as asked. **Alerts:** each printer's alerts are
+  a notification of their own (they were one for all printers) with Open Printer and Pause Alerts (an hour), replacing the
+  one before for that printer (`AlertToasts.tag`, Windows' toast tag); a click or Open Printer shows the printer's status.
+  Not checked: Finder's Open With and a drop by a person, the Dock menu on screen, the palette and Help on screen and with
+  VoiceOver, the rating prompt (only a TestFlight or App Store copy asks, and macOS decides), a notification's buttons
+  clicked.
 - The menu bar item is on by default (the Windows tray icon starts off), with its alerts; turned off, closing the window
   quits. With it on and the window closed, network printers are checked every 5 minutes (15 on battery or in Low Data
   Mode, backing off to an hour for one that doesn't answer) instead of watched live; queues are read every minute.
