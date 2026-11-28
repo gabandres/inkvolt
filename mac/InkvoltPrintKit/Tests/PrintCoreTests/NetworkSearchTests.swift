@@ -229,7 +229,7 @@ struct NetworkSearchTests {
 
     /// A link-local IPv6 address with its zone (the network interface after `%`, typed `%25` as RFC 6874 has it) keeps it:
     /// the IPP and web addresses write it `%25` (the hostile-input review: Apple's URLComponents trapped on the `%` of
-    /// `fe80::1%en0`). Windows drops the zone instead (.NET's Uri.Host).
+    /// `fe80::1%en0`). Windows keeps it too, where .NET holds one (Uri.IdnHost).
     @Test(arguments: [
         ("ipp://[fe80::1%25en0]/", "fe80::1%en0", "http://[fe80::1%25en0]:631/ipp/print", nil),
         ("ipps://[fe80::1%25en0]:8631/ipp/print", "fe80::1%en0", "https://[fe80::1%25en0]:8631/ipp/print", nil),

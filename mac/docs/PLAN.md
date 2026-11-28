@@ -874,7 +874,8 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
 - An IPv6 address typed with its zone (`[fe80::1%25en0]`, `ipp://[fe80::1%25en0]/`; hostile-input review, 2026-11-23,
   where Apple's URLComponents trapped on the `%`) keeps it: the printer's host is `fe80::1%en0`, and its IPP and web
   addresses write it `%25` (`PrinterAddress.urlHost`, which `DeviceHttp` uses too; a host no URL can hold gets the base
-  `unusable.invalid`, never a trap). Windows drops the zone (.NET's `Uri.Host`). A zone that isn't RFC 6874's unreserved
+  `unusable.invalid`, never a trap). Windows keeps it too (later: `PrinterAddress.HostOf`, `UrlHost`, `UrlText`, with these
+  tests; .NET holds a zone only in `Uri.IdnHost`). A zone that isn't RFC 6874's unreserved
   characters is no address. Not checked: connecting to a link-local printer by its zone (the transports' scope, above).
   The same review: Print a PDF's layouts refuse a PDF past `SheetPrint.maxSides` on its page count first
   (`SheetPrint.tooMany(_:pages:)`), then measure its pages once (off the main thread past 200 pages); `{n:D<n>}` pads to

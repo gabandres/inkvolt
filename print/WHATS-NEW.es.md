@@ -6,6 +6,7 @@ one line for each English line, every version (`WhatsNewSpanishTests` checks it)
 Spanish here. The voice is `docs/SPANISH-REVIEW.md`'s (informal *tú*, the app's own words for its commands).
 
 ## Next
+- Agregar una impresora conserva la zona de una dirección IPv6 de vínculo local que escribas (fe80::…%12, o %2512 en una URL), así le pregunta a la impresora por esa conexión de red, y te avisa si la zona no es válida.
 
 ## 1.10.1
 - Cuando una actualización de Windows deja roto el controlador de una impresora, imprimir ya no falla con "PrintTicket provider failed to bind to printer": las páginas van directamente a la impresora por la red y la pestaña Imprimir te dice por qué. Si la impresora no acepta páginas así, un mensaje te explica cómo arreglarla en Windows.

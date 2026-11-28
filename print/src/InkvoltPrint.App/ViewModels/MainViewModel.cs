@@ -111,7 +111,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         foreach (var k in state.Printers)
             Printers.Add(new PrinterViewModel(k.Uuid, k.Name, k.Model, k.Host, k.EsclRoot is null ? null : new Uri(k.EsclRoot), state, Presets, Remember, pc)
             {
-                IppUri = Uri.TryCreate(k.IppUri, UriKind.Absolute, out var ipp) ? ipp : null,
+                IppUri = Core.Discovery.PrinterAddress.ReadUrl(k.IppUri), // an IPv6 zone kept "%25"; read back where a connection reads it
                 WebRoot = Uri.TryCreate(k.WebRoot, UriKind.Absolute, out var web) ? Core.Discovery.PrinterAddress.WebRoot(web, k.Host) : null,
                 SnmpDevice = k.Snmp,
             });
@@ -841,7 +841,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         if (p.Host is null || !Printers.Contains(p)) return;
         Reconcile(queues: false); // it just connected: with no eSCL, a scanner Windows has for it may stand in
-        _state.RememberPrinter(new KnownPrinter(p.Uuid, p.Name, p.Model, p.Host, p.EsclRoot?.AbsoluteUri, p.IppUri?.AbsoluteUri, p.SnmpDevice,
+        _state.RememberPrinter(new KnownPrinter(p.Uuid, p.Name, p.Model, p.Host, p.EsclRoot?.AbsoluteUri,
+            p.IppUri is { } ipp ? Core.Discovery.PrinterAddress.UrlText(ipp) : null, p.SnmpDevice,
             p.WebRoot?.AbsoluteUri));
     }
 
