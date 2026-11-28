@@ -156,9 +156,9 @@ leave the file). Tests: `ParagraphEditTests` and its parts, `FontKerningTests`; 
 - CFF and Type 1 programs have no kerning of their own and no AFM ships for them, so they kern only through an
   installed twin whose widths match within 1.5%.
 - **Not checked:** the Acrobat half of the test (an edited page reads the same in Acrobat; Acrobat isn't on this PC).
-- **Mac:** done but for one Windows addition of 2026-11-20: Crop (mixed sizes and colors and the font's own kerning
-  ported 2026-11-27, pictures in the flow 2026-11-28). Differences (Type 3 stand-ins from Core Text, the twin's kerning
-  tables from Core Text, a picture's mark shown as a picture icon): `mac/docs/PLAN.md`, "Paragraph editing".
+- **Mac:** done, Windows' 2026-11-20 additions too (mixed sizes and colors and the font's own kerning ported 2026-11-27,
+  pictures in the flow and Crop 2026-11-28). Differences (Type 3 stand-ins from Core Text, the twin's kerning tables from
+  Core Text, a picture's mark shown as a picture icon): `mac/docs/PLAN.md`, "Paragraph editing".
 
 ### 2.2 Better OCR
 Done, Windows. Results: `pdf/tools/ocr-corpus` (RESULTS.md, RESULTS-photos.md).

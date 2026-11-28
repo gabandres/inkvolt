@@ -28007,6 +28007,61 @@
         }
       }
     },
+    "Only an upright picture, or one turned a quarter, can be cropped.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo se puede recortar una imagen derecha o girada un cuarto de vuelta."
+          }
+        }
+      }
+    },
+    "This picture is one color painted through a stencil (or masked by a color), so it can't be cropped.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta imagen es un solo color pintado a través de una plantilla (o enmascarado por un color), así que no se puede recortar."
+          }
+        }
+      }
+    },
+    "This picture keeps its transparency in a way a crop can't keep (inside its JPEG 2000 data, or blended with a background color), so it can't be cropped.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta imagen guarda su transparencia de una forma que un recorte no puede conservar (dentro de sus datos JPEG 2000, o mezclada con un color de fondo), así que no se puede recortar."
+          }
+        }
+      }
+    },
+    "The picture couldn't be cropped: its image couldn't be read.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo recortar la imagen: no se pudo leer su contenido."
+          }
+        }
+      }
+    },
+    "The part of the picture to keep is too large to crop (more than 50 million pixels).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La parte de la imagen que se conserva es demasiado grande para recortarla (más de 50 millones de píxeles)."
+          }
+        }
+      }
+    },
     "A picture can't be typed or pasted into a paragraph: the mark ￼ stands for a picture already in it. Add one with Insert Picture on the editor's bar.": {
       "extractionState": "manual",
       "localizations": {

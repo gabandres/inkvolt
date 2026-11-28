@@ -1402,7 +1402,14 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             drag = .contentMove(page: page, start: start, box: box, by: PointD(d.dx, d.dy))
         case .contentResize(let page, let handle, let box, _):
             let p = pagePoint(point, on: page)
-            drag = .contentResize(page: page, handle: handle, box: box, now: DrawingGeometry.resize(box, handle, p, minSize: 4, keepAspect: shiftDown))
+            let cropping = content?.isCropping == true
+            var now = DrawingGeometry.resize(box, handle, p, minSize: 4, keepAspect: !cropping && shiftDown)
+            // Cropping: no further out than the whole picture.
+            if cropping, let image = content?.selectedImage {
+                let cut = now.intersect(image.uncropped ?? image.box)
+                if cut.width >= 1 && cut.height >= 1 { now = cut }
+            }
+            drag = .contentResize(page: page, handle: handle, box: box, now: now)
         }
         autoscroll(with: event)
     }
@@ -1485,9 +1492,9 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             content?.move(image, to: RectD(box.x + by.x, box.y + by.y, box.width, box.height))
         case .contentResize(_, _, let box, let now):
             let changed = abs(now.x - box.x) + abs(now.y - box.y) + abs(now.width - box.width) + abs(now.height - box.height)
-            guard changed >= 0.5, let image = content?.selectedImage else { return }
+            guard changed >= 0.5, let content, let image = content.selectedImage else { return }
             ghost = finished
-            content?.move(image, to: now)
+            if content.isCropping { content.crop(image, to: now) } else { content.move(image, to: now) }
         case .move(let id, let page, _, let frame, let by):
             guard abs(by.x) + abs(by.y) >= 0.5 else { return }
             ghost = finished
@@ -1823,7 +1830,15 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             replace.target = content
             let delete = NSMenuItem(title: loc("Delete Picture"), action: #selector(ContentEditing.deleteSelected(_:)), keyEquivalent: "")
             delete.target = content
+            let crop = NSMenuItem(title: loc("Crop Picture"), action: #selector(ContentEditing.toggleCrop(_:)), keyEquivalent: "c")
+            crop.keyEquivalentModifierMask = []
+            crop.target = content
+            crop.state = content.isCropping ? .on : .off
+            crop.isEnabled = image.blocked == nil && !image.turned
+            crop.toolTip = loc("Cut the selected picture's edges off: drag its handles in (C). What you cut off is removed from the file; Undo brings it back. Esc ends cropping.")
+            menu.autoenablesItems = false // Crop Picture's state is its own
             menu.addItem(replace)
+            menu.addItem(crop)
             menu.addItem(delete)
             return menu
         }
@@ -2039,7 +2054,14 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             return true
         default:
             if event.keyCode == 53 {
-                content.select(nil)
+                // Esc ends cropping first, then lets go of the picture.
+                if content.isCropping { content.setCropping(false) } else { content.select(nil) }
+                return true
+            }
+            // C: Crop Picture on or off (roadmap 2.1).
+            if event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty,
+               event.charactersIgnoringModifiers?.lowercased() == "c", image.blocked == nil {
+                content.toggleCrop(nil)
                 return true
             }
             return false

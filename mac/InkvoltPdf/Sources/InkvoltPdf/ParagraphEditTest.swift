@@ -9,8 +9,9 @@ import PrintCore
 /// given to words through its look bar and the note under it read, then applied (the looks read back as spans); new text
 /// that would run into the line below declined, then confirmed; a character Helvetica lacks drawn from a font on this
 /// Mac; the paragraph turned 5° from its editor's Angle box and back with Edit › Turn to Angle… (roadmap 4.22); a picture
-/// put in its flow with Picture… on the editor's bar and moved along by words written in front (roadmap 2.1's pictures in
-/// the flow), then undone. The document is closed unsaved. Only what it made is written.
+/// put in its flow with Picture… on the editor's bar, moved along by words written in front, then cropped to half its
+/// width with C and a handle (roadmap 2.1's pictures in the flow and Crop). The document is closed unsaved. Only what it
+/// made is written.
 @MainActor
 struct ParagraphEditTest {
     /// Running: the document it opens gets no self-test of its own.
@@ -134,6 +135,7 @@ struct ParagraphEditTest {
         await overlap(c)
         await standIns(c)
         await pictures(c)
+        await crop(c)
         c.content.testParagraph = nil
         c.content.testOverlapAnswer = nil
         finish()
@@ -146,6 +148,23 @@ struct ParagraphEditTest {
         let color = NSColor(deviceRed: 1, green: 140 / 255, blue: 0, alpha: 1)
         for x in 0..<30 { for y in 0..<10 { rep.setColor(color, atX: x, y: y) } }
         return [UInt8](rep.representation(using: .png, properties: [:]) ?? Data())
+    }
+
+    /// A press at `from`, dragged to `to`, released (page points).
+    private func drag(_ c: DocumentWindowController, _ from: PointD, _ to: PointD) async {
+        let pages = c.pages
+        for (type, p) in [(NSEvent.EventType.leftMouseDown, from), (.leftMouseDragged, PointD((from.x + to.x) / 2, (from.y + to.y) / 2)),
+                          (.leftMouseDragged, to), (.leftMouseUp, to)] {
+            let location = pages.convert(pages.viewPoint(p, pages.pageRects[0]), to: nil)
+            let e = NSEvent.mouseEvent(with: type, location: location, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                       windowNumber: c.window?.windowNumber ?? 0, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!
+            switch type {
+            case .leftMouseDown: pages.mouseDown(with: e)
+            case .leftMouseDragged: pages.mouseDragged(with: e)
+            default: pages.mouseUp(with: e)
+            }
+        }
+        await settle(c)
     }
 
     /// Pictures in the flow (roadmap 2.1): Picture… on the editor's bar puts one after "boxing"; read back it is one of the
@@ -193,11 +212,42 @@ struct ParagraphEditTest {
                 && now.map { abs($0.box.x - image.box.x) > 1 || abs($0.box.y - image.box.y) > 1 } == true
                 && now.map { abs($0.box.width - image.box.width) < 0.5 } == true,
               "words written in front move the picture with its text (\(image.box.x.rounded()) → \(now?.box.x.rounded() ?? -1))")
-        for _ in 0..<2 {
+    }
+
+    /// Crop Picture (roadmap 2.1): the picture selected, C, its right handle dragged in half its width: one undo step, the
+    /// picture half as wide, its kept pixels a new picture of the file; Esc ends cropping; undo takes the crop and the
+    /// picture back.
+    private mutating func crop(_ c: DocumentWindowController) async {
+        guard let image = read(c).images.first else { return check(false, "the picture is there to crop") }
+        _ = await c.content.ensure(0)
+        let edits = c.editor.finishedEdits
+        c.content.select(c.content.image(page: 0, PointD(image.box.centerX, image.box.centerY)) ?? image)
+        c.window?.makeFirstResponder(c.pages)
+        let keyC = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: c.window?.windowNumber ?? 0,
+                                    context: nil, characters: "c", charactersIgnoringModifiers: "c", isARepeat: false, keyCode: 8)!
+        c.pages.keyDown(with: keyC)
+        check(c.content.isCropping, "C starts cropping the selected picture")
+        let handle = PointD(image.box.right, image.box.centerY)
+        await drag(c, handle, PointD(image.box.right - image.box.width / 2, image.box.centerY))
+        let written = await waitEdits(c, edits + 1)
+        await settle(c)
+        let now = read(c).images.first
+        check(written && now.map { abs($0.box.width - image.box.width / 2) < 1.5 && abs($0.box.x - image.box.x) < 0.5 } == true
+                && c.window?.undoManager?.undoMenuItemTitle == Shown.undo(loc("Crop picture")),
+              "its right handle dragged in crops it to half its width, one undo step (\(image.box.width.rounded()) → \(now?.box.width.rounded() ?? -1))")
+        let esc = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: c.window?.windowNumber ?? 0,
+                                   context: nil, characters: "\u{1b}", charactersIgnoringModifiers: "\u{1b}", isARepeat: false, keyCode: 53)!
+        if c.content.selectedImage != nil {
+            c.content.setCropping(true)
+            c.pages.keyDown(with: esc)
+            check(!c.content.isCropping && c.content.selectedImage != nil, "Esc ends cropping, the picture still selected")
+        }
+        c.content.select(nil)
+        for _ in 0..<3 {
             c.window?.undoManager?.undo()
             await settle(c)
         }
-        check(read(c).images.isEmpty, "undo takes the move and the picture back")
+        check(read(c).images.isEmpty, "undo takes the crop, the move and the picture back")
     }
 
     /// A click on the paragraph's second line, with twenty words more: rewrapped in its box, what follows stays; undo, redo.

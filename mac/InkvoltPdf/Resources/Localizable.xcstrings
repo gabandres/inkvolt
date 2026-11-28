@@ -27159,6 +27159,50 @@
           }
         }
       }
+    },
+    "Crop Picture": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recortar imagen"
+          }
+        }
+      }
+    },
+    "Crop picture": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recortar imagen"
+          }
+        }
+      }
+    },
+    "Drag a handle to crop the picture: what you cut off is removed from the file (Undo brings it back). Press Esc or C when done.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arrastra un controlador para recortar la imagen: lo que recortas se quita del archivo (Deshacer lo recupera). Pulsa Esc o C al terminar."
+          }
+        }
+      }
+    },
+    "Cut the selected picture's edges off: drag its handles in (C). What you cut off is removed from the file; Undo brings it back. Esc ends cropping.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recorta los bordes de la imagen seleccionada: arrastra sus controladores hacia dentro (C). Lo que recortas se quita del archivo; Deshacer lo recupera. Esc termina el recorte."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

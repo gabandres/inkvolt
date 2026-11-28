@@ -550,6 +550,12 @@ extension DocumentEditor {
         await run(loc("Delete picture")) { data, pw in try ContentEditor.deleteImage(data, pw, image) }
     }
 
+    /// Crop Picture (roadmap 2.1): the picture cut to `box`, what is cut off gone from the file.
+    @discardableResult
+    func cropImage(_ image: PageImage, to box: RectD) async -> Bool {
+        await run(loc("Crop picture")) { data, pw in try ContentEditor.cropImage(data, pw, image, box) }
+    }
+
     @discardableResult
     func replaceImage(_ image: PageImage, file: [UInt8], name: String) async -> Bool {
         await run(loc("Replace picture")) { data, pw in try ContentEditor.replaceImage(data, pw, image, file, name) }
