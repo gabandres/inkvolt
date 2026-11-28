@@ -16,3 +16,8 @@ Suggested fix (Inkvolt's patch, `patches/harfbuzz-context-per-thread.patch`): `s
 *fz_hb_secret`. Each thread sets and clears its own, under the same lock as before; HarfBuzz frees within
 `fz_hb_lock` too (`hb_buffer_destroy`, the font's shaper data), so a pointer is freed through the context of the
 thread holding the lock, which shares its allocator with the one that allocated it (a clone, or the same context).
+
+Windows (MuPDFCore 2.0.1, MuPDF 1.25.2, same global) does not crash: MuPDFCore's `CreateContext` passes every context
+the same process-wide locks (`MuPDFWrapper.cpp`'s `global_mutex`), so `fz_hb_lock` excludes across contexts there.
+Checked by `pdf/tests/.../ReflowableLayoutTests` (4,800 FB2/EPUB opens on all cores, no failure). A MuPDFCore that
+gave each context its own locks would bring the crash to Windows.
