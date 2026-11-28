@@ -522,9 +522,10 @@ extension DocumentEditor {
 
     /// Rewrites a paragraph (roadmap 2.1): `allowOverlap` once the person agreed to text running into what follows.
     @discardableResult
-    func replaceParagraph(_ paragraph: PdfCore.TextParagraph, _ text: String, spans: [TextSpan]?, allowOverlap: Bool) async -> Bool {
+    func replaceParagraph(_ paragraph: PdfCore.TextParagraph, _ text: String, spans: [TextSpan]?, allowOverlap: Bool,
+                          added: [NewPicture] = []) async -> Bool {
         await run(loc("Edit paragraph")) { data, pw in
-            try ContentEditor.replaceParagraph(data, pw, paragraph, text, allowOverlap: allowOverlap, spans: spans)
+            try ContentEditor.replaceParagraph(data, pw, paragraph, text, allowOverlap: allowOverlap, spans: spans, added: added)
         }
     }
 
@@ -547,6 +548,12 @@ extension DocumentEditor {
     @discardableResult
     func deleteImage(_ image: PageImage) async -> Bool {
         await run(loc("Delete picture")) { data, pw in try ContentEditor.deleteImage(data, pw, image) }
+    }
+
+    /// Crop Picture (roadmap 2.1): the picture cut to `box`, what is cut off gone from the file.
+    @discardableResult
+    func cropImage(_ image: PageImage, to box: RectD) async -> Bool {
+        await run(loc("Crop picture")) { data, pw in try ContentEditor.cropImage(data, pw, image, box) }
     }
 
     @discardableResult

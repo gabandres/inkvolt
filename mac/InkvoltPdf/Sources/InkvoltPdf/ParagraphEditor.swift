@@ -1,19 +1,25 @@
 import AppKit
 import PdfCore
 import PrintCore
+import UniformTypeIdentifiers
 
 /// The paragraph editor of Edit Text & Images (roadmap 2.1; the Windows app's paragraph editor in PageViewer.EditContent
 /// and PageViewer.ParagraphLooks): a popover over the paragraph with a rich text view of its text, a look bar above it
 /// (font, A− and A+, bold, italic, the paragraph's own color and six others) that changes the selection's look, and a note
 /// under it saying live what the new text would do (its lines, what it would run into, characters drawn from fonts on
 /// this Mac, the faces a look is drawn in). Return applies, Shift-Return (or Option-Return) starts a new line, Esc
-/// cancels. Mac difference: the text is shown at a readable size, not at the page's, in its family when this Mac has it;
-/// Windows lays its editor over the paragraph at the page's zoom.
+/// cancels. Picture… on the bar puts a picture where the cursor is: it goes in the text's flow and moves with its words
+/// (`NewPicture`); the paragraph's own pictures in its flow show as picture icons, each one's mark (U+FFFC) in the text.
+/// Mac differences: the text is shown at a readable size, not at the page's, in its family when this Mac has it (Windows
+/// lays its editor over the paragraph at the page's zoom); a picture's mark shows as a picture icon (an attachment), where
+/// Windows shows the character ￼.
 @MainActor
 final class ParagraphEditorController: NSViewController, NSTextViewDelegate {
     let paragraph: PdfCore.TextParagraph
-    /// The text and looks to write; nil when cancelled.
-    var done: ((String, [TextSpan]) -> Void)?
+    /// The text, looks and new pictures to write; nil when cancelled.
+    var done: ((String, [TextSpan], [NewPicture]) -> Void)?
+    /// For the self-test: the picture file Picture… takes (nil: an open panel asks).
+    var testPictureFile: (bytes: [UInt8], name: String)?
     /// The angle typed in the Angle box (roadmap 4.22; degrees clockwise): the paragraph is turned to it.
     var turn: ((Double) -> Void)?
     /// The Angle box: the paragraph's direction; Return in it turns the paragraph to what it says.
@@ -39,6 +45,25 @@ final class ParagraphEditorController: NSViewController, NSTextViewDelegate {
     private final class LookBox: NSObject {
         let look: TextLook
         init(_ look: TextLook) { self.look = look }
+    }
+
+    /// A picture Picture… put in, on its mark (copied or moved with the mark, as Windows' run carries it).
+    private static let pictureKey = NSAttributedString.Key("InkvoltNewPicture")
+
+    private final class PictureBox: NSObject {
+        let file: [UInt8], name: String
+        init(_ file: [UInt8], _ name: String) {
+            self.file = file
+            self.name = name
+        }
+    }
+
+    /// How a picture's mark shows in the text: a picture icon the size of the paragraph's text.
+    private static func pictureIcon() -> NSTextAttachment {
+        let a = NSTextAttachment()
+        let config = NSImage.SymbolConfiguration(pointSize: shownSize, weight: .regular)
+        a.image = NSImage(systemSymbolName: "photo", accessibilityDescription: loc("Picture"))?.withSymbolConfiguration(config)
+        return a
     }
 
     /// Colors the bar offers, after the paragraph's own.
@@ -92,6 +117,15 @@ final class ParagraphEditorController: NSViewController, NSTextViewDelegate {
         angleField.widthAnchor.constraint(equalToConstant: 64).isActive = true
         bar.addArrangedSubview(angleLabel)
         bar.addArrangedSubview(angleField)
+        // Roadmap 2.1: a new picture into the text's flow (not for turned text or text in a drawing the page reuses).
+        if paragraph.takesNewPictures {
+            let picture = NSButton(title: loc("Picture…"), target: self, action: #selector(insertPicture(_:)))
+            picture.bezelStyle = .smallSquare
+            let tip = loc("Insert a picture where the cursor is: it goes in the text's flow and moves with its words")
+            picture.toolTip = tip
+            picture.setAccessibilityHelp(tip)
+            bar.addArrangedSubview(picture)
+        }
 
         let scroll = NSScrollView()
         scroll.hasVerticalScroller = true
@@ -214,6 +248,10 @@ final class ParagraphEditorController: NSViewController, NSTextViewDelegate {
             let lo = max(0, span.start), hi = min(length, span.end)
             if lo < hi { s.setAttributes(attributes(span.look), range: NSRange(location: lo, length: hi - lo)) }
         }
+        // The paragraph's pictures in its flow: their marks show as picture icons.
+        for pic in paragraph.pictures where pic.mark >= 0 && pic.mark < length {
+            s.addAttribute(.attachment, value: Self.pictureIcon(), range: NSRange(location: pic.mark, length: 1))
+        }
         return s
     }
 
@@ -226,6 +264,20 @@ final class ParagraphEditorController: NSViewController, NSTextViewDelegate {
             spans.append(TextSpan(range.location, range.length, look))
         }
         return (textView.string, spans)
+    }
+
+    /// The pictures Picture… put in, at their marks' places in the text (one per mark still there).
+    func addedPictures() -> [NewPicture] {
+        let storage = textView.textStorage ?? NSTextStorage()
+        let units = Array(storage.string.utf16)
+        var added: [NewPicture] = []
+        storage.enumerateAttribute(Self.pictureKey, in: NSRange(location: 0, length: storage.length)) { value, range, _ in
+            guard let box = value as? PictureBox else { return }
+            for i in range.location..<min(range.location + range.length, units.count) where units[i] == PdfCore.TextParagraph.pictureMarkUnit {
+                added.append(NewPicture(file: box.file, name: box.name, mark: i))
+            }
+        }
+        return added
     }
 
     /// Gives the selection (or what is typed next, with nothing selected) a look changed by `change`.
@@ -318,13 +370,14 @@ final class ParagraphEditorController: NSViewController, NSTextViewDelegate {
     private func scheduleNote() {
         noteTask?.cancel()
         let (text, spans) = content()
+        let added = addedPictures()
         let p = paragraph
         noteTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(150))
             if Task.isCancelled { return }
-            let check = await Task.detached(priority: .userInitiated) { p.check(text, spans: spans) }.value
+            let check = await Task.detached(priority: .userInitiated) { p.check(text, spans: spans, added: added) }.value
             if Task.isCancelled { return }
-            self?.showNote(check)
+            self?.showNote(check, pictures: !added.isEmpty)
         }
     }
 
@@ -349,13 +402,18 @@ final class ParagraphEditorController: NSViewController, NSTextViewDelegate {
     func updateNote() {
         noteTask?.cancel()
         let (text, spans) = content()
-        showNote(paragraph.check(text, spans: spans))
+        let added = addedPictures()
+        showNote(paragraph.check(text, spans: spans, added: added), pictures: !added.isEmpty)
     }
 
-    private func showNote(_ check: ParagraphCheck) {
+    /// `pictures`: Picture… put new pictures in.
+    private func showNote(_ check: ParagraphCheck, pictures: Bool = false) {
         var color = NSColor.secondaryLabelColor
         var said: String
-        if !check.missing.isEmpty {
+        if check.missing.contains(PdfCore.TextParagraph.pictureMark) {
+            said = loc("A picture can't be typed or pasted in: the picture icons only mark the pictures already in the paragraph. Add one with Picture… on the bar.")
+            color = .systemRed
+        } else if !check.missing.isEmpty {
             said = loc("Neither the font “{0}” nor any font on this Mac has {1}, so those can't be typed here.", lead.fontName, Self.charList(check.missing))
             color = .systemRed
         } else {
@@ -381,6 +439,9 @@ final class ParagraphEditorController: NSViewController, NSTextViewDelegate {
             }
             if !check.faces.isEmpty {
                 said += "\n" + loc("Drawn in {0} where the look asks for it (fonts on this Mac, embedded as used).", check.faces.joined(separator: ", "))
+            }
+            if !paragraph.pictures.isEmpty || pictures {
+                said += "\n" + loc("A picture icon marks a picture in the text: it moves with its words. Delete the icon to take the picture off.")
             }
         }
         note.stringValue = said
@@ -422,9 +483,54 @@ final class ParagraphEditorController: NSViewController, NSTextViewDelegate {
         finished = true
         noteTask?.cancel()
         let (text, spans) = content()
+        let added = addedPictures()
         popover?.close()
-        done?(text, spans)
+        done?(text, spans, added)
         done = nil
+    }
+
+    /// Picture… on the bar: an image file, put where the cursor is as a mark that stands for it (written into the
+    /// paragraph's flow with the rest). The popover stays open while the open panel asks (Windows keeps its editor open
+    /// while its file dialog has the focus).
+    @objc func insertPicture(_ sender: Any?) {
+        guard !finished else { return }
+        let at = textView.selectedRange()
+        var file = testPictureFile
+        if file == nil {
+            let panel = NSOpenPanel()
+            panel.title = loc("Insert Picture")
+            panel.allowedContentTypes = [.png, .jpeg, .bmp, .gif, .tiff]
+            let behavior = popover?.behavior
+            popover?.behavior = .applicationDefined
+            let response = panel.runModal()
+            if let behavior { popover?.behavior = behavior }
+            view.window?.makeFirstResponder(textView)
+            guard response == .OK, let url = panel.url else { return }
+            do {
+                file = ([UInt8](try Data(contentsOf: url)), url.lastPathComponent)
+            } catch {
+                note.stringValue = loc("Insert Picture didn't work") + ": " + error.localizedDescription
+                note.textColor = .systemRed
+                return
+            }
+        }
+        guard let file, !finished else { return }
+        insertPicture(file.bytes, file.name, at: at)
+    }
+
+    /// The mark for a new picture at `at` (the selection it replaces), the cursor after it.
+    func insertPicture(_ bytes: [UInt8], _ name: String, at: NSRange) {
+        guard let storage = textView.textStorage else { return }
+        let range = NSRange(location: min(at.location, storage.length), length: max(0, min(at.length, storage.length - min(at.location, storage.length))))
+        var attrs = textView.typingAttributes
+        attrs[.attachment] = Self.pictureIcon()
+        attrs[Self.pictureKey] = PictureBox(bytes, name)
+        let mark = NSAttributedString(string: PdfCore.TextParagraph.pictureMark, attributes: attrs)
+        guard textView.shouldChangeText(in: range, replacementString: mark.string) else { return }
+        storage.replaceCharacters(in: range, with: mark)
+        textView.didChangeText()
+        textView.setSelectedRange(NSRange(location: range.location + 1, length: 0))
+        updateNote()
     }
 
     /// Return in the Angle box: the paragraph turned to it (a change to its text is kept first, or said).
@@ -436,7 +542,7 @@ final class ParagraphEditorController: NSViewController, NSTextViewDelegate {
         }
         if ContentTurn.turnBy(paragraph.angle, wanted) == nil { return }
         let (text, spans) = content()
-        if text != paragraph.text || spans != paragraph.spans {
+        if text != paragraph.text || spans != paragraph.spans || !addedPictures().isEmpty {
             note.stringValue = loc("Press Return in the text to keep your change to it first, then turn it.")
             return
         }

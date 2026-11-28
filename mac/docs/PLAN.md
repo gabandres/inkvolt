@@ -2589,11 +2589,24 @@ and `corpusParagraphsTakeTwentyMoreWords` needs `INKVOLTPDF_CORPUS` (the export 
   /System/Library/Fonts/ZapfDingbats.ttf (its built-in encoding from Unicode's mapping of the Dingbats block, the glyph
   names and widths from the font; Windows reads Adobe's AFM and glyph list, which the Mac doesn't copy), Symbol with
   macOS's Symbol.ttf by its glyph names' characters (Adobe's widths, rounded; the euro 750 as on Windows).
-- **Windows' additions of 2026-11-20.** Ported: mixed sizes and colors (`ParagraphEditTests+Mixed`: a run of the
+- **Windows' additions of 2026-11-20.** All ported: mixed sizes and colors (`ParagraphEditTests+Mixed`: a run of the
   paragraph's own face in another size or color is a stretch of that look, a smaller one set off its line a script at
   the page's own size and rise, `TextLook.rise` and the tag's /Rise as on Windows; a color the page set is written again
-  with its own fill operators) and the font's own kerning (`FontKerning`, `FontKerningTests`). Not yet: pictures in the
-  flow (`InlinePictures`, Picture… on the bar) and Crop (`ContentEditor.Crop.cs`).
+  with its own fill operators), the font's own kerning (`FontKerning`, `FontKerningTests`), pictures in the flow
+  (`InlinePicture`, `inlinePictures`, `pictureEdits`, `NewPicture` and Picture… on the editor's bar;
+  `ParagraphEditTests+Pictures`; a paragraph turned turns its pictures with it, as Windows' 4.22 does) and Crop
+  (`ContentEditor+Crop.swift`: the part kept drawn by MuPDF from a copy of the page and stored as a new picture, the
+  pixels cut off gone from the file; `ParagraphEditTests+Crop`; C or Crop Picture in the picture's menu, Esc ends it).
+- **A picture's mark shows as a picture icon.** Windows' editor shows a picture in the flow as the character ￼ (U+FFFC);
+  the Mac's text view shows each picture's mark as an attachment, a picture icon (the text still holds U+FFFC, so the
+  marks and their order are the same), and its notes say "picture icon" for "￼". Picture…'s open panel keeps the
+  editor's popover open (its behavior application-defined while the panel is up), as Windows keeps its editor open while
+  its file dialog has the focus. Crop Picture is in the picture's menu (Control-click) and on C; Windows also has it on
+  Edit Text & Images' bar, which the Mac has no counterpart of.
+- **A crop's drawing page.** The copy of the page MuPDF draws the kept part from has its MediaBox, CropBox and Rotate
+  set (Windows takes the page's own CropBox and Rotate out, so a page tree's inherited ones would still apply). A new
+  picture's size is read from its file's header as on Windows, a JPEG's from its markers (Windows' header reader has no
+  JPEG case, so its Insert Picture refuses a JPEG as not an image; reported to fix there).
 - **The font's own kerning from Core Text.** Windows reads the installed twin's GPOS or kern table from its file; the
   Mac asks Core Text for the twin's head, GPOS and kern tables (`CTFontCopyTable`) and reads them with the same
   `PairKerning`, by Core Text's glyphs (the font's own glyph ids). The twin is `StandInFonts.twin`: the family's face in

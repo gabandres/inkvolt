@@ -300,6 +300,25 @@ public enum ImageImport {
         }
     }
 
+    /// An image file's pixel size as it shows (a JPEG turned by its EXIF orientation counted), from its header; (0, 0) when
+    /// it isn't an image this reads. (Windows' `PixelSize` reads a JPEG's size from its header too, where its `Header` has
+    /// no JPEG case: the Mac reads it from the JPEG's markers.)
+    static func pixelSize(_ bytes: [UInt8], _ name: String) -> (width: Int, height: Int) {
+        guard let type = sniff(bytes, name) else { return (0, 0) }
+        let w: Int, h: Int
+        var turned = false
+        if type == .jpeg {
+            guard let info = readJpeg(bytes) else { return (0, 0) }
+            (w, h) = (info.width, info.height)
+            turned = (5...8).contains(info.orientation)
+        } else {
+            let hd = header(bytes, type)
+            (w, h) = (hd.width, hd.height)
+        }
+        if w <= 0 || h <= 0 || w > 1_000_000 || h > 1_000_000 { return (0, 0) }
+        return turned ? (h, w) : (w, h)
+    }
+
     /// Pixel size and resolution from the file header (0 / nil where it doesn't say or can't be read).
     private static func header(_ b: [UInt8], _ type: ImageType) -> (width: Int, height: Int, dpiX: Double?, dpiY: Double?) {
         func be32(_ at: Int) -> Int { at + 4 <= b.count ? Int(b[at]) << 24 | Int(b[at + 1]) << 16 | Int(b[at + 2]) << 8 | Int(b[at + 3]) : 0 }

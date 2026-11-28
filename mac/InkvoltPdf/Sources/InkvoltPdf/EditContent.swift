@@ -12,7 +12,8 @@ import UniformTypeIdentifiers
 /// keys nudge it (Shift: 10 pt; written once the keys rest for 0.45 s, as Windows), Delete removes it and Replace
 /// Picture… swaps it; the round handle out from its top-right corner turns it (Shift: 15° steps), and the paragraph
 /// editor's Angle box and Edit › Turn to Angle… turn a paragraph or a picture to an angle typed (roadmap 4.22,
-/// `ContentTurn`). Each change is one undo step. Not yet: Tab through the runs.
+/// `ContentTurn`); C or Crop Picture crops the selected picture with its handles, what is cut off leaving the file
+/// (roadmap 2.1). Each change is one undo step. Not yet: Tab through the runs.
 @MainActor
 final class ContentEditing: NSObject, NSPopoverDelegate {
     private weak var controller: DocumentWindowController?
@@ -133,6 +134,13 @@ final class ContentEditing: NSObject, NSPopoverDelegate {
             if !selected { path.setLineDash([5 * px, 3 * px], count: 2, phase: 0) }
             (selected ? NSColor.controlAccentColor : image.blocked == nil ? NSColor.systemOrange : NSColor.systemGray).setStroke()
             path.stroke()
+            if selected && isCropping, let whole = image.uncropped {
+                // Cropping: where the whole picture reaches, dotted.
+                let all = NSBezierPath(rect: pages.viewRect(whole, r))
+                all.lineWidth = px
+                all.setLineDash([px, 2 * px], count: 2, phase: 0)
+                all.stroke()
+            }
             if selected && image.blocked == nil {
                 // The round turn handle (roadmap 4.22), out from the top-right corner as shown, on a stalk.
                 let v = pages.viewRect(box, r)
@@ -252,6 +260,7 @@ final class ContentEditing: NSObject, NSPopoverDelegate {
 
     func select(_ image: PageImage?) {
         if !isSelected(image) {
+            cropping = false
             flushNudge()
             // A move that couldn't be written yet (the last one still being written) goes with the old selection.
             if hasPendingNudge {
@@ -326,9 +335,9 @@ final class ContentEditing: NSObject, NSPopoverDelegate {
         let anchor = pages.viewRect(p.box, pages.pageRects[p.pageIndex])
         let editor = ParagraphEditorController(p, width: anchor.width + 40)
         editor.spellingLanguage = controller?.documentLanguage
-        editor.done = { [weak self] text, spans in
+        editor.done = { [weak self] text, spans, added in
             self?.paragraphEditor = nil
-            self?.replace(p, text, spans)
+            self?.replace(p, text, spans, added: added)
         }
         editor.turn = { [weak self] wanted in
             self?.paragraphEditor = nil
@@ -360,11 +369,15 @@ final class ContentEditing: NSObject, NSPopoverDelegate {
 
     /// Rewrites a paragraph: refused with a notice when a character can't be drawn or a look can't be written; asked first
     /// when it would run into what follows; characters drawn from fonts on this Mac said after.
-    func replace(_ p: PdfCore.TextParagraph, _ text: String, _ spans: [TextSpan]?) {
+    func replace(_ p: PdfCore.TextParagraph, _ text: String, _ spans: [TextSpan]?, added: [NewPicture] = []) {
         guard let editor, let controller else { return }
-        let check = p.check(text, spans: spans)
+        let check = p.check(text, spans: spans, added: added)
         if let problem = check.lookProblem {
             controller.notify(loc("Not changed: {0}.", problem))
+            return
+        }
+        if check.missing.contains(PdfCore.TextParagraph.pictureMark) {
+            controller.notify(loc("A picture can't be typed or pasted in: the picture icons only mark the pictures already in the paragraph. Add one with Picture… on the bar."))
             return
         }
         if !check.missing.isEmpty {
@@ -382,7 +395,7 @@ final class ContentEditing: NSObject, NSPopoverDelegate {
                 }
                 allow = true
             }
-            let ok = await editor.replaceParagraph(p, text, spans: spans, allowOverlap: allow)
+            let ok = await editor.replaceParagraph(p, text, spans: spans, allowOverlap: allow, added: added)
             if ok && !check.borrowed.isEmpty {
                 controller.notify(ParagraphEditorController.borrowedNote(check.borrowed, p.lead.fontName, check.standIns), canUndo: true)
             }
@@ -473,6 +486,43 @@ final class ContentEditing: NSObject, NSPopoverDelegate {
             // The document's own change notice has read everything again already (dropping the selection): the picture is
             // found again where it went.
             if await editor.moveImage(image, to: box) { self.invalidate(keeping: box, page: image.pageIndex) }
+            self.pendingEdit = nil
+        }
+    }
+
+    // MARK: Cropping (roadmap 2.1)
+
+    /// Crop Picture: the selected picture's handles cut its edges instead of resizing it (no further out than the whole
+    /// picture); C or Crop Picture starts and ends it, Esc ends it.
+    private(set) var cropping = false
+
+    /// Whether the selected picture is being cropped.
+    var isCropping: Bool { cropping && selectedImage != nil }
+
+    /// Starts or ends cropping the selected picture (an upright one, or one turned a quarter).
+    func setCropping(_ on: Bool) {
+        cropping = on && selectedImage.map { $0.blocked == nil && !$0.turned } == true
+        pages?.needsDisplay = true
+    }
+
+    /// C, or Crop Picture in the picture's menu: cropping on or off, said.
+    @objc func toggleCrop(_ sender: Any?) {
+        guard let image = selectedImage else { return NSSound.beep() }
+        flushNudge()
+        setCropping(!isCropping)
+        if isCropping {
+            controller?.notify(loc("Drag a handle to crop the picture: what you cut off is removed from the file (Undo brings it back). Press Esc or C when done."))
+        } else if image.turned {
+            controller?.notify(loc("Only an upright picture, or one turned a quarter, can be cropped."))
+        }
+    }
+
+    /// The selected picture cropped to `box` (page space): one edit, then still selected as it shows now.
+    func crop(_ image: PageImage, to box: RectD) {
+        guard let editor else { return }
+        let shown = box.intersect(image.uncropped ?? image.box)
+        pendingEdit = Task {
+            if await editor.cropImage(image, to: box) { self.invalidate(keeping: shown, page: image.pageIndex) }
             self.pendingEdit = nil
         }
     }

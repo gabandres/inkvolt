@@ -4,7 +4,8 @@ import PrintCore
 /// Turning a picture or a paragraph to any angle (roadmap 4.22; the Windows app's `ContentEditor.Rotate`), about the
 /// middle of its box. A picture gets the turn in front of its own placement (as a move does); a paragraph's show operators
 /// are each drawn again from a text matrix turned the same way (its glyphs, spacing and kerning as they were), and the text
-/// position put back where each left it, so the rest of the page draws where it did. One save, so one undo step.
+/// position put back where each left it, so the rest of the page draws where it did; its pictures in the flow turn with
+/// it. One save, so one undo step.
 extension ContentEditor {
     /// Turns a picture `degrees` clockwise (as the page shows) about the middle of its box. The same bytes for no turn.
     public static func rotateImage(_ data: [UInt8], _ password: String?, _ image: PageImage, _ degrees: Double) throws -> [UInt8] {
@@ -59,6 +60,15 @@ extension ContentEditor {
             let text = nextLine(op, run) + tm.write() + " Tm " + showOnly(op, target.bytes) + " " + backAfter(run)
             edits.append((op.start, op.end, latin1Bytes(text)))
         }
+        // Its pictures in the flow turn with it.
+        if !paragraph.pictures.isEmpty {
+            if target.form != nil { throw ContentEditError(changed) }
+            for pic in paragraph.pictures {
+                guard let found = walked.images.first(where: { $0.id == pic.image.id && near($0.box, pic.image.box) }), found.blocked == nil,
+                      let ctm = walked.imageCtm[found.id], found.id >= 0, found.id < ops.count else { throw ContentEditError(changed) }
+                edits.append(try placing(ops, ops[found.id], try turnMatrix(frame, ctm, center, degrees), streams.bytes))
+            }
+        }
         try writeTarget(doc, page, target, edits)
         try doc.checkFailure()
         return try PdfEdit.save(doc, original: data, password: password)
@@ -88,21 +98,6 @@ extension ContentEditor {
     private static func turnMatrix(_ frame: PageFrame, _ ctm: Mat, _ center: PointD, _ degrees: Double) throws -> Mat {
         guard let inv = ctm.inverted() else { throw ContentEditError(loc("This picture is drawn squashed flat, so it can't be moved.")) }
         return ctm.times(try pageTurnInUser(frame, center, degrees)).times(inv)
-    }
-
-    /// A picture's drawing operator with `m` put before its placement: "q … cm /Im Do Q" gets its cm changed, anything
-    /// else is wrapped (as `moveImage` does).
-    static func placing(_ ops: [COp], _ op: COp, _ m: Mat, _ content: [UInt8]) throws -> (start: Int, end: Int, bytes: [UInt8]) {
-        guard let at = ops.firstIndex(where: { $0 === op }) else {
-            throw ContentEditError(loc("The page changed since this picture was picked. Pick it again."))
-        }
-        if at >= 2 && at + 1 < ops.count && ops[at - 2].name == "q" && ops[at - 1].name == "cm" && ops[at - 1].operands.count == 6
-            && ops[at + 1].name == "Q" {
-            let cm = ops[at - 1]
-            let c = Mat(cm.n(0), cm.n(1), cm.n(2), cm.n(3), cm.n(4), cm.n(5))
-            return (cm.start, cm.end, latin1Bytes(m.times(c).write() + " cm"))
-        }
-        return (op.start, op.end, latin1Bytes("q \(m.write()) cm ") + slice(op, content) + latin1Bytes(" Q"))
     }
 
     /// The direction a picture's own x axis takes on the page: degrees clockwise from left-to-right.

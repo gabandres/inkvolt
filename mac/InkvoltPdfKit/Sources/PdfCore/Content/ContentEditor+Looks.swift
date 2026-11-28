@@ -198,6 +198,81 @@ extension ContentEditor {
         if spans.isEmpty { return [] }
         let old = Array(oldText.utf16), now = Array(nowText.utf16)
         if old == now { return spans }
+        let map = charMap(old, now)
+        let oldLooks = looksOf(old, spans)
+        var looks = [TextLook?](repeating: nil, count: now.count)
+        var mapped = [Bool](repeating: false, count: now.count)
+        for i in 0..<old.count where map[i] >= 0 {
+            looks[map[i]] = oldLooks[i]
+            mapped[map[i]] = true
+        }
+        func white(_ u: UInt16) -> Bool { u == 32 || u == 10 || u == 13 || u == 9 || u == 0xA0 }
+        if now.count > 1 {
+            for i in 1..<now.count where !mapped[i] && !white(now[i]) && !white(now[i - 1]) { looks[i] = looks[i - 1] }
+        }
+        var result: [TextSpan] = []
+        var i = 0
+        while i < now.count {
+            guard let look = looks[i], !look.isPlain else {
+                i += 1
+                continue
+            }
+            var j = i + 1
+            while j < now.count && looks[j] == look { j += 1 }
+            result.append(TextSpan(i, j - i, look))
+            i = j
+        }
+        return result
+    }
+
+    /// A U+FFFC the page's own text has, kept as a character (`pictureMarks`).
+    static let textMark = -2
+
+    /// For each U+FFFC in `now`, in order: the paragraph's picture it stands for (its index in `pictures`, whose marks are
+    /// where `InlinePicture.mark` says in `old`), `textMark` for one the page's own text had (a glyph whose text is
+    /// U+FFFC), or -1 for one typed or pasted in. A mark kept from the old text keeps its picture; a picture's mark cut and
+    /// pasted elsewhere (the text between can't keep both) is the next mark that came. `inserted`: places in `now` (UTF-16)
+    /// of marks the editor put in for new pictures: -1, never a picture of the old text's.
+    static func pictureMarks(_ oldText: String, _ nowText: String, _ pictures: [InlinePicture], inserted: Set<Int> = []) -> [Int] {
+        let mark = TextParagraph.pictureMarkUnit
+        let old = Array(oldText.utf16), now = Array(nowText.utf16)
+        let marks = now.filter { $0 == mark }.count
+        var result = [Int](repeating: -1, count: marks)
+        if marks == 0 || !old.contains(mark) { return result }
+        let map = charMap(old, now)
+        var ordinal: [Int: Int] = [:] // a mark's place in now → its number among now's marks
+        var insertedAt = Set<Int>() // the inserted marks' numbers among now's marks
+        var k = 0
+        for (i, u) in now.enumerated() where u == mark {
+            if inserted.contains(i) { insertedAt.insert(k) } else { ordinal[i] = k }
+            k += 1
+        }
+        var pictureAt: [Int: Int] = [:] // a picture's mark's place in old → the picture
+        for (n, p) in pictures.enumerated() where p.mark >= 0 && p.mark < old.count && old[p.mark] == mark && pictureAt[p.mark] == nil {
+            pictureAt[p.mark] = n
+        }
+        var used = [Bool](repeating: false, count: pictures.count)
+        for i in 0..<old.count {
+            guard old[i] == mark, map[i] >= 0, let at = ordinal[map[i]] else { continue }
+            if let n = pictureAt[i] {
+                result[at] = n
+                used[n] = true
+            } else {
+                result[at] = textMark
+            }
+        }
+        // A mark cut and pasted elsewhere (the text between can't keep both): the pictures whose marks went, in order.
+        let owned = Set(pictureAt.values)
+        var free = (0..<pictures.count).filter { !used[$0] && owned.contains($0) }[...]
+        for i in 0..<marks where !free.isEmpty && result[i] == -1 && !insertedAt.contains(i) {
+            result[i] = free.removeFirst()
+        }
+        return result
+    }
+
+    /// Where each character of `old` went in `now` (-1: gone): the characters both share (the same start and end, then
+    /// their longest common subsequence in between, when it is small enough to work out).
+    static func charMap(_ old: [UInt16], _ now: [UInt16]) -> [Int] {
         var map = [Int](repeating: -1, count: old.count) // where each old character went (-1: gone)
         var pre = 0
         while pre < old.count && pre < now.count && old[pre] == now[pre] {
@@ -232,30 +307,7 @@ extension ContentEditor {
                 }
             }
         }
-        let oldLooks = looksOf(old, spans)
-        var looks = [TextLook?](repeating: nil, count: now.count)
-        var mapped = [Bool](repeating: false, count: now.count)
-        for i in 0..<old.count where map[i] >= 0 {
-            looks[map[i]] = oldLooks[i]
-            mapped[map[i]] = true
-        }
-        func white(_ u: UInt16) -> Bool { u == 32 || u == 10 || u == 13 || u == 9 || u == 0xA0 }
-        if now.count > 1 {
-            for i in 1..<now.count where !mapped[i] && !white(now[i]) && !white(now[i - 1]) { looks[i] = looks[i - 1] }
-        }
-        var result: [TextSpan] = []
-        var i = 0
-        while i < now.count {
-            guard let look = looks[i], !look.isPlain else {
-                i += 1
-                continue
-            }
-            var j = i + 1
-            while j < now.count && looks[j] == look { j += 1 }
-            result.append(TextSpan(i, j - i, look))
-            i = j
-        }
-        return result
+        return map
     }
 
     /// A color as an RGB fill operator.
